@@ -15,7 +15,7 @@ client = TestClient(app)
 # Desde US-01 toda reserva lleva pago (simulado). Tarjeta de prueba aprobada.
 CARD = {"number": "4242 4242 4242 4242", "exp_month": 12, "exp_year": 2030, "cvv": "123"}
 
-USER = {"email": "Ana@Correo.com", "password": "clave-segura-1", "name": "Ana Pérez", "phone": "6123-4567"}
+USER = {"email": "Ana@Correo.com", "password": "Clave-segura-1", "name": "Ana Pérez", "phone": "6123-4567"}
 
 
 def _register(**overrides):
@@ -81,6 +81,30 @@ def test_register_duplicate_email():
 )
 def test_register_invalid(overrides):
     assert _register(**overrides).status_code == 422
+
+
+@pytest.mark.parametrize(
+    "password, missing",
+    [
+        ("clave-segura-1", ["una mayúscula"]),
+        ("CLAVE-SEGURA-1", ["una minúscula"]),
+        ("Clave-segura", ["un número"]),
+        ("clave-segura", ["una mayúscula", "un número"]),
+    ],
+)
+def test_register_password_policy(password, missing):
+    r = _register(password=password)
+    assert r.status_code == 422
+    msg = r.json()["detail"][0]["msg"]
+    for rule in missing:
+        assert rule in msg
+
+
+def test_password_policy_only_on_register():
+    # Iniciar sesión no valida reglas: solo compara con la contraseña guardada.
+    _register()
+    r = _login(password="sinreglas")
+    assert r.status_code == 401
 
 
 # ---------- Inicio de sesión ----------

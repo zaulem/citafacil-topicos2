@@ -144,6 +144,23 @@ class CustomerRegister(BaseModel):
     def _lower_email(cls, v: str) -> str:
         return v.strip().lower()
 
+    @field_validator("password")
+    @classmethod
+    def _password_policy(cls, v: str) -> str:
+        """Mínimo 8 caracteres (Field) con al menos una mayúscula, una minúscula y un número."""
+        missing = [
+            label
+            for ok, label in (
+                (any(c.isupper() for c in v), "una mayúscula"),
+                (any(c.islower() for c in v), "una minúscula"),
+                (any(c.isdigit() for c in v), "un número"),
+            )
+            if not ok
+        ]
+        if missing:
+            raise ValueError("La contraseña debe tener al menos " + ", ".join(missing) + ".")
+        return v
+
     @field_validator("phone")
     @classmethod
     def _validate_phone(cls, v: str) -> str:
