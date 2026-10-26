@@ -140,7 +140,7 @@
         <div class="add-svc">
           <div class="field" style="margin:0"><label>Nombre</label><input id="nsName" placeholder="Ej: Corte de pelo" /></div>
           <div class="field" style="margin:0"><label>Duración (min)</label><input id="nsDur" type="number" value="30" min="5" step="5" /></div>
-          <div class="field" style="margin:0"><label>Precio (CLP)</label><input id="nsPrice" type="number" value="8000" min="0" step="500" /></div>
+          <div class="field" style="margin:0"><label>Precio (USD)</label><input id="nsPrice" type="number" value="8.00" min="0" step="0.01" /></div>
           <button class="btn sm" onclick="addService()"><i class="fa-solid fa-plus"></i> Agregar</button>
         </div>
       </div>
@@ -160,7 +160,8 @@
   const API = (localStorage.getItem("citafacil_api") || DEFAULT_API).replace(/\/$/, "");
 
   const $ = id => document.getElementById(id);
-  const money = n => "$" + (n||0).toLocaleString("es-CL");
+  // Los precios llegan en centavos de USD (1250 -> "$12.50").
+  const money = cents => "$" + ((cents||0)/100).toLocaleString("es-PA",{minimumFractionDigits:2, maximumFractionDigits:2});
   let TOKEN = localStorage.getItem("citafacil_token") || "";
 
   function toast(msg, kind){ const t=$("toast"); t.textContent=msg; t.className="toast "+(kind||""); t.style.display="block"; setTimeout(()=>t.style.display="none", 2800); }
@@ -222,7 +223,7 @@
   }
 
   const STLABEL = {pending:"Pendiente",confirmed:"Confirmada",cancelled:"Cancelada",done:"Realizada"};
-  function fmtDT(iso){ const d=new Date(iso); return d.toLocaleDateString("es-CL",{weekday:"short",day:"2-digit",month:"2-digit"})+" · "+d.toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}); }
+  function fmtDT(iso){ const d=new Date(iso); return d.toLocaleDateString("es-PA",{weekday:"short",day:"2-digit",month:"2-digit"})+" · "+d.toLocaleTimeString("es-PA",{hour:"2-digit",minute:"2-digit"}); }
 
   async function loadAppointments(){
     const body=$("apptBody"); body.innerHTML='<tr><td colspan="6" class="empty">Cargando…</td></tr>';
@@ -267,7 +268,7 @@
       box.innerHTML="";
       list.forEach(s=>{
         const row=document.createElement("div"); row.className="svc-row"+(s.active?"":" inactive");
-        row.innerHTML=`<div class="info"><b>${s.name}</b><span style="color:var(--muted)"><i class="fa-regular fa-clock"></i> ${s.duration_min} min</span><span class="price">${money(s.price)}</span>${s.active?"":'<span class="badge b-cancelled">inactivo</span>'}</div>
+        row.innerHTML=`<div class="info"><b>${s.name}</b><span style="color:var(--muted)"><i class="fa-regular fa-clock"></i> ${s.duration_min} min</span><span class="price">${money(s.price_cents)}</span>${s.active?"":'<span class="badge b-cancelled">inactivo</span>'}</div>
           <div class="actions">
             <button class="ico warn" title="${s.active?'Desactivar':'Activar'}" onclick="toggleSvc(${s.id},${!s.active})"><i class="fa-solid fa-power-off"></i></button>
             <button class="ico del" title="Eliminar" onclick="delSvc(${s.id})"><i class="fa-solid fa-trash"></i></button>
@@ -286,9 +287,10 @@
     catch(e){ toast(e.message,"err"); }
   }
   async function addService(){
-    const name=$("nsName").value.trim(), duration_min=parseInt($("nsDur").value), price=parseInt($("nsPrice").value);
+    const name=$("nsName").value.trim(), duration_min=parseInt($("nsDur").value), price_cents=Math.round(parseFloat($("nsPrice").value)*100);
     if(name.length<2){ toast("Escribe un nombre válido","err"); return; }
-    try{ await api("/api/admin/services",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,duration_min,price})});
+    if(!(price_cents>=0)){ toast("Escribe un precio válido","err"); return; }
+    try{ await api("/api/admin/services",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,duration_min,price_cents})});
       $("nsName").value=""; toast("Servicio agregado","ok"); loadServices();
     }catch(e){ toast(e.message,"err"); }
   }
