@@ -1,10 +1,12 @@
-"""Genera ~6 meses de citas pasadas (y algunas futuras) para la previsión (US-03).
+"""Genera ~3 meses de citas pasadas (~300) y algunas futuras para la previsión (US-03).
 
 Uso (después de seed.py):  python seed_history.py
 
 Patrones simulados: más demanda viernes y sábados, horas pico al mediodía y al
 final de la tarde, crecimiento leve en el tiempo, más cortes que tintes y ~8 %
-de cancelaciones. Respeta el horario, los días cerrados y no solapa citas.
+de cancelaciones. Cada día tiene además una variación al azar: como en un negocio
+real, hay días flojos y días buenos; ninguno se acerca a llenarse.
+Respeta el horario, los días cerrados y no solapa citas.
 Es reproducible (semilla fija) y no vuelve a generar si ya hay histórico.
 """
 from __future__ import annotations
@@ -17,14 +19,14 @@ from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.utils import local_now
 
-DAYS_BACK = 182        # ~6 meses de histórico
+DAYS_BACK = 91         # ~3 meses de histórico (coherente con el rango máximo de la vista)
 DAYS_AHEAD = 21        # reservas futuras ya tomadas (para comparar con la previsión)
 SEED = 42
 
-# Probabilidad relativa de que un horario se reserve (día × hora × crecimiento).
-# Calibrado para que los sábados queden cerca del lleno y los lunes con poca demanda,
-# así la demo muestra sugerencias de ambos tipos.
-WEEKDAY_FACTOR = {0: 0.40, 1: 0.55, 2: 0.70, 3: 0.80, 4: 2.00, 5: 3.00}  # lun..sáb
+# Probabilidad de que un horario se reserve: día × hora × variación del día × crecimiento.
+# Calibrado para ~300 citas en 3 meses (≈ 4 por día abierto).
+WEEKDAY_FACTOR = {0: 0.15, 1: 0.21, 2: 0.26, 3: 0.30, 4: 0.45, 5: 0.57}  # lun..sáb
+DAY_VARIATION = (0.4, 1.6)  # multiplicador al azar por día: días flojos y días buenos
 HOUR_FACTOR = {10: 0.5, 11: 0.7, 12: 0.9, 13: 0.8, 14: 0.5, 15: 0.5, 16: 0.7, 17: 0.9, 18: 0.9, 19: 0.6}
 SERVICE_WEIGHT = {"Corte de pelo": 0.40, "Corte + Barba": 0.25, "Perfilado de barba": 0.15,
                   "Corte niño": 0.12, "Tinte / Color": 0.08}
@@ -60,6 +62,7 @@ def run() -> None:
             growth = 0.8 + 0.2 * (offset + DAYS_BACK) / DAYS_BACK   # 0.8 -> 1.0 hasta hoy
             # A futuro solo una parte ya está reservada: menos cuanto más lejos.
             booked_share = 1.0 if offset < 0 else max(0.1, 0.7 - 0.6 * offset / DAYS_AHEAD)
+            day_factor = rnd.uniform(*DAY_VARIATION)
             existing = db.query(models.Appointment).filter(
                 models.Appointment.start_at >= datetime.combine(day, time.min),
                 models.Appointment.start_at <= datetime.combine(day, time.max),
@@ -69,7 +72,8 @@ def run() -> None:
             cursor = datetime.combine(day, time(hour=settings.open_hour))
             close = datetime.combine(day, time(hour=settings.close_hour))
             while cursor < close:
-                p = WEEKDAY_FACTOR.get(day.weekday(), 0.5) * HOUR_FACTOR.get(cursor.hour, 0.5) * growth * booked_share
+                p = (WEEKDAY_FACTOR.get(day.weekday(), 0.2) * HOUR_FACTOR.get(cursor.hour, 0.5)
+                     * day_factor * growth * booked_share)
                 svc = rnd.choices(svcs, weights)[0]
                 end = cursor + timedelta(minutes=svc.duration_min)
                 free = end <= close and not any(cursor < b_end and b_start < end for b_start, b_end in busy)
