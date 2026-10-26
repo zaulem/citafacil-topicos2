@@ -32,7 +32,8 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 13 | 2026-10-25 | Código / Testing | Claude Code | Implementar US-02 (#9) según plan aprobado: calendario mensual propio, nº de horarios libres por día, aviso de pocos cupos y límite de 3 meses | Endpoint mensual, calendario en JS puro (sin librerías) y 9 tests nuevos (23/23). Un primer intento de edición del HTML falló por un error de comillas del shell y no modificó nada; se rehízo con la herramienta de edición | Aceptado; QA aprobado (QA-09 a QA-13), PR #15 | H-12 |
 | 14 | 2026-10-26 | Código / Testing | Claude Code | Implementar US-01 parte A (#10): cuentas de cliente con correo y contraseña, solo biblioteca estándar | Registro, login con bloqueo tras 5 intentos, logout, `/api/me`, reservas asociadas al cliente y frontend con ventana de acceso; 17 tests nuevos (40/40). Detectó el riesgo H-19 al separar los tests y lo resolvió con `conftest.py`. Evitó insertar el nombre del cliente como HTML | Aceptado; QA aprobado (QA-14 a QA-20), PR #16 | H-19, H-20, H-21 |
 | 15 | 2026-10-26 | Código / Testing | Claude Code | Implementar US-01 parte B (#10): pago simulado obligatorio, tarjeta guardada (una por cliente), tarjeta de prueba rechazada y columna Pago en admin | Validación de tarjeta (Luhn, marca, vencimiento, CVV), cobro antes de crear la cita, endpoints `/api/me/card`; 19 tests nuevos y 7 existentes adaptados al pago obligatorio (59/59). En su autorrevisión corrigió una aserción vacía en un test y un caso en que la tarjeta guardada no se cargaba al recargar la página | Aceptado; QA aprobado (QA-21 a QA-27), PR #17 | H-15, H-22, H-23 |
-| 16 | 2026-10-26 | Seguridad | Claude Code | Corregir H-23 y agregar política de contraseña (rama `fix/seguridad`) | Escape de nombre, teléfono, servicio y tarjeta en la tabla del admin; contraseña con mayúscula, minúscula y número validada en backend, con guía visual en el registro; 7 tests nuevos (66/66). Se comprobó que el test de H-23 falla con la versión sin arreglo | Aceptado; pendiente QA manual | H-23 |
+| 16 | 2026-10-26 | Seguridad | Claude Code | Corregir H-23 y agregar política de contraseña (rama `fix/seguridad`) | Escape de nombre, teléfono, servicio y tarjeta en la tabla del admin; contraseña con mayúscula, minúscula y número validada en backend, con guía visual en el registro; 7 tests nuevos (66/66). Se comprobó que el test de H-23 falla con la versión sin arreglo | Aceptado; QA aprobado (QA-28 a QA-32), PR #18 | H-23 |
+| 17 | 2026-10-26 | Código / Testing | Claude Code | Implementar US-03 (#12): histórico de ejemplo, previsión de demanda con sugerencias y vista "Ver Estadísticas" con Chart.js | `seed_history.py` (~6 meses, reproducible, sin solapes), endpoint `/api/admin/forecast` (promedio de 8 semanas + tendencia lineal, horizonte 1–3 meses), pestañas Reservas / Ver Estadísticas, 4 gráficos, KPIs y sugerencias; 12 tests nuevos (78/78). La IA corrigió dos fallos de su propio diseño antes del commit (ver respuestas incorrectas #6 y #7) | Aceptado; pendiente QA manual | — |
 
 ---
 
@@ -63,7 +64,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | H-20 | 2026-10-26 | Limitación conocida | No se verifica que el correo pertenezca al cliente: la app no envía correos | Decisión de diseño de US-01 | Documentado; fuera del alcance de esta versión | Aceptado |
 | H-21 | 2026-10-26 | Deuda técnica (original) | `Appointment.created_at` usa `datetime.utcnow`, obsoleto en Python 3.12 (genera advertencias en los tests) | Advertencias de pytest | Las tablas nuevas usan `utc_now()`; la del código original se deja igual por ahora | Pendiente (menor) |
 | H-22 | 2026-10-26 | Seguridad (original) | El mensaje final de la reserva insertaba el celular escrito por el usuario como HTML | Revisión al modificar ese mensaje en US-01 B | Se escapa el texto (`esc()`) en ese mensaje | Resuelto (US-01 B, PR #17) |
-| H-23 | 2026-10-26 | Seguridad (original) | El panel admin inserta como HTML el nombre del cliente (`innerHTML`). Cualquier visitante puede reservar con un nombre que contenga código, y ese código se ejecutaría en el navegador del administrador (XSS almacenado) | Revisión del panel admin al agregar la columna Pago | Escape (`esc()`) al mostrar nombre, teléfono, servicio y tarjeta en la tabla del admin. Test `test_frontend_security.py` (estático + ejecución real con Node.js) | Resuelto (rama `fix/seguridad`) |
+| H-23 | 2026-10-26 | Seguridad (original) | El panel admin inserta como HTML el nombre del cliente (`innerHTML`). Cualquier visitante puede reservar con un nombre que contenga código, y ese código se ejecutaría en el navegador del administrador (XSS almacenado) | Revisión del panel admin al agregar la columna Pago | Escape (`esc()`) al mostrar nombre, teléfono, servicio y tarjeta en la tabla del admin. Test `test_frontend_security.py` (estático + ejecución real con Node.js) | Resuelto (PR #18) |
 
 ---
 
@@ -76,6 +77,8 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 3 | 2026-10-25 | Corrigió H-05 haciendo que `loadSlots()` borrara la hora, sin revisar que el `catch` del botón Confirmar también llamaba a `loadSlots()` | Efecto secundario: tras un error de validación se perdía la hora elegida. La IA solo validó sintaxis, no el flujo en el navegador | Detectado por QA manual; corregido en H-10 |
 | 4 | 2026-10-25 | Encadenó en un solo comando la edición de la bitácora (script) con el commit y el push; el script falló y el commit `570ba14` se subió diciendo que incluía la bitácora sin incluirla | El commit no se condicionó al éxito del script y el mensaje describía un cambio inexistente | Detectado por la IA al revisar la salida; corregido con el commit `2dd437f` |
 | 5 | 2026-10-26 | Escribió en un test la aserción `"123" not in appt.payment_last4`, que se cumple siempre y no prueba nada sobre el CVV | Aserción vacía: daba falsa seguridad | Detectado por la IA al revisar sus tests antes del commit; reemplazada por una verificación de que no existe columna para el CVV ni el número |
+| 6 | 2026-10-26 | Midió la ocupación en minutos de servicio en vez de turnos bloqueados | En una agenda por turnos de 30 min, un servicio de 20 min bloquea el turno entero: la ocupación quedaba subestimada (tope real ≈ 80 % aun con el día lleno) y nunca aparecía la sugerencia de alta demanda | Detectado por la IA al revisar los resultados del histórico de ejemplo; se mide en turnos bloqueados (test `test_occupancy_counts_blocked_slots`) |
+| 7 | 2026-10-26 | La previsión semanal sumaba solo los días desde hoy | La semana actual aparecía con una caída falsa en el gráfico | Detectado por la IA al diseñar el gráfico; se usa el total del modelo para la semana completa (verificado en `test_constant_demand_split_by_weekday`) |
 
 ---
 
@@ -122,6 +125,10 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 24 | 2026-10-26 | Incluir la tarjeta de prueba rechazada `4000 0000 0000 0002` para validar el caso de pago fallido | Solo tarjetas aprobadas | Samuel Saenz |
 | 25 | 2026-10-26 | Corregir H-23 escapando los datos del cliente al mostrarlos en el admin | Además, validar el nombre al recibirlo | Samuel Saenz |
 | 26 | 2026-10-26 | Política de contraseña: 8 caracteres o más, con al menos una mayúscula, una minúscula y un número (solo al crear cuenta) | Solo longitud mínima | Samuel Saenz |
+| 27 | 2026-10-26 | Gráficos con Chart.js (CDN, como Font Awesome y las fuentes) | Gráficos hechos a mano en SVG | Samuel Saenz |
+| 28 | 2026-10-26 | Incluir sugerencias automáticas de precio e inventario | Solo gráficos | Samuel Saenz |
+| 29 | 2026-10-26 | Horizonte de previsión dinámico: 1 mes por defecto, seleccionable hasta 3 meses | Horizonte fijo en semanas | Samuel Saenz |
+| 30 | 2026-10-26 | Panel admin con dos pestañas: "Reservas" (por defecto) y "Ver Estadísticas" | Gráficos debajo de las reservas; botón que alterna | Samuel Saenz |
 
 ---
 
@@ -141,6 +148,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 2026-10-26 | `pytest -q` (US-01 A) | 40/40 OK | 17 tests nuevos en `test_accounts.py`: hash de contraseña, registro (válido, duplicado, inválidos), login, mismo mensaje para correo inexistente y contraseña incorrecta, bloqueo y desbloqueo, logout, sesión vencida, reserva con sesión, como invitado y con token falso |
 | 2026-10-26 | `pytest -q` (US-01 B) | 59/59 OK | 19 tests nuevos en `test_payments.py` (Luhn, marcas, errores de tarjeta, pago obligatorio, tarjeta rechazada sin cita, precio pagado fijo, tarjeta guardada, una por cliente, sesión requerida); 7 tests existentes adaptados al pago obligatorio |
 | 2026-10-26 | `pytest -q` (fix/seguridad) | 66/66 OK | 7 tests nuevos: 4 casos de política de contraseña, login sin validar reglas, escape en el admin (estático) y `esc()` ejecutado con Node.js (se omite si no hay Node). El test de H-23 falla con la versión de `main` sin arreglo |
+| 2026-10-26 | `pytest -q` (US-03) | 78/78 OK | 12 tests nuevos en `test_forecast.py`: recta de tendencia, turnos bloqueados, demanda constante repartida por día, tendencia creciente, canceladas excluidas, ingresos con precio pagado, horizonte y días cerrados, reservas ya tomadas, sin histórico, sugerencias, token y rango de meses. `seed_history.py` verificado en BD temporal: 0 solapes, 0 domingos, idempotente |
 
 ## 7. Pruebas manuales (QA)
 
@@ -173,5 +181,10 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | QA-25 | 2026-10-26 | US-01 B: pagar con un clic | Otra reserva con sesión | "Usar mi tarjeta Visa •••• 4242" marcado, sin pedir datos | ✅ Como se esperaba | Samuel Saenz | PR #17 |
 | QA-26 | 2026-10-26 | US-01 B: persistencia de la tarjeta | Recargar la página | La tarjeta guardada sigue apareciendo | ✅ Como se esperaba | Samuel Saenz | PR #17 |
 | QA-27 | 2026-10-26 | US-01 B: columna Pago en admin | Revisar el panel admin | Reservas pagadas con monto y tarjeta; "Sin pago" en las de ejemplo | ✅ Como se esperaba | Samuel Saenz | PR #17 |
+| QA-28 | 2026-10-26 | H-23: XSS en el panel admin | Reservar con el nombre `<img src=x onerror=alert('XSS')>` y abrir el admin | Sin alerta; el nombre se ve como texto | ✅ Como se esperaba | Samuel Saenz | PR #18 |
+| QA-29 | 2026-10-26 | Guía de contraseña | Crear cuenta escribiendo la contraseña | Cada regla se marca en verde al cumplirse | ✅ Como se esperaba | Samuel Saenz | PR #18 |
+| QA-30 | 2026-10-26 | Contraseña débil | Registrarse con `clavesegura` | Indica que falta mayúscula y número | ✅ Como se esperaba | Samuel Saenz | PR #18 |
+| QA-31 | 2026-10-26 | Contraseña válida | Registrarse con `Clave2026` | Cuenta creada | ✅ Como se esperaba | Samuel Saenz | PR #18 |
+| QA-32 | 2026-10-26 | Cuenta anterior a la política | Iniciar sesión con la cuenta previa | Inicia sesión sin aplicar reglas | ✅ Como se esperaba | Samuel Saenz | PR #18 |
 
 > Nota QA-04: la reserva exitosa se hizo en otro horario (27-10 15:00), no como continuación directa de QA-03; la secuencia "error → corregir teléfono → confirmar mismo horario" no quedó registrada por separado.
