@@ -30,7 +30,8 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 11 | 2026-10-25 | Código / Testing | Claude Code | Implementar US-04 (#8) según plan aprobado: teléfonos +507, `America/Panama`, USD en centavos | Cambios en backend, frontend, seed y config; tests de 6 a 14. Un test falló por el `.env` local con valores de Chile | Aceptado; la IA corrigió el `.env` local con autorización | H-07, H-13, H-16, H-17 |
 | 12 | 2026-10-25 | Testing | Claude Code | Aislar los tests del `.env` local (H-18, opción B) | Reprodujo el fallo simulando la configuración de otro integrante (3/14 fallaban) y fijó la configuración en los tests: 14/14 en ambos casos | Aceptado | H-18 |
 | 13 | 2026-10-25 | Código / Testing | Claude Code | Implementar US-02 (#9) según plan aprobado: calendario mensual propio, nº de horarios libres por día, aviso de pocos cupos y límite de 3 meses | Endpoint mensual, calendario en JS puro (sin librerías) y 9 tests nuevos (23/23). Un primer intento de edición del HTML falló por un error de comillas del shell y no modificó nada; se rehízo con la herramienta de edición | Aceptado; QA aprobado (QA-09 a QA-13), PR #15 | H-12 |
-| 14 | 2026-10-26 | Código / Testing | Claude Code | Implementar US-01 parte A (#10): cuentas de cliente con correo y contraseña, solo biblioteca estándar | Registro, login con bloqueo tras 5 intentos, logout, `/api/me`, reservas asociadas al cliente y frontend con ventana de acceso; 17 tests nuevos (40/40). Detectó el riesgo H-19 al separar los tests y lo resolvió con `conftest.py`. Evitó insertar el nombre del cliente como HTML | Aceptado; pendiente QA manual | H-19, H-20, H-21 |
+| 14 | 2026-10-26 | Código / Testing | Claude Code | Implementar US-01 parte A (#10): cuentas de cliente con correo y contraseña, solo biblioteca estándar | Registro, login con bloqueo tras 5 intentos, logout, `/api/me`, reservas asociadas al cliente y frontend con ventana de acceso; 17 tests nuevos (40/40). Detectó el riesgo H-19 al separar los tests y lo resolvió con `conftest.py`. Evitó insertar el nombre del cliente como HTML | Aceptado; QA aprobado (QA-14 a QA-20), PR #16 | H-19, H-20, H-21 |
+| 15 | 2026-10-26 | Código / Testing | Claude Code | Implementar US-01 parte B (#10): pago simulado obligatorio, tarjeta guardada (una por cliente), tarjeta de prueba rechazada y columna Pago en admin | Validación de tarjeta (Luhn, marca, vencimiento, CVV), cobro antes de crear la cita, endpoints `/api/me/card`; 19 tests nuevos y 7 existentes adaptados al pago obligatorio (59/59). En su autorrevisión corrigió una aserción vacía en un test y un caso en que la tarjeta guardada no se cargaba al recargar la página | Aceptado; pendiente QA manual | H-15, H-22, H-23 |
 
 ---
 
@@ -53,13 +54,15 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | H-12 | 2026-10-25 | Bug (original) | La fecha mínima del frontend usa `toISOString()` (UTC): en Panamá, desde las 19:00 "hoy" pasa a ser mañana y no se puede reservar para el mismo día | Análisis de arquitectura | Endpoint `/api/availability/month` devuelve `today` calculado en la zona del negocio; el frontend ya no usa `toISOString()` | Resuelto (US-02, PR #15) |
 | H-13 | 2026-10-25 | Configuración | El backend calcula "ahora" con la zona `America/Santiago` (UTC-3), 2 h adelante de Panamá: oculta horarios aún válidos | Análisis de arquitectura | `America/Panama` en US-04 | Resuelto (US-04, PR #13) |
 | H-14 | 2026-10-25 | Arquitectura | No hay migraciones: `create_all()` crea tablas nuevas pero no agrega columnas a las existentes | Análisis de arquitectura | Al cambiar el modelo, borrar `backend/citafacil.db` y volver a ejecutar `seed.py` (sin Alembic) | Aceptado |
-| H-15 | 2026-10-25 | Diseño de datos | La cita no guarda el precio cobrado: si cambia el precio del servicio, cambia el histórico de ingresos | Análisis de arquitectura | Guardar `price_paid` en la cita (US-01) para usarlo en US-03 | Pendiente |
+| H-15 | 2026-10-25 | Diseño de datos | La cita no guarda el precio cobrado: si cambia el precio del servicio, cambia el histórico de ingresos | Análisis de arquitectura | La cita guarda `price_paid_cents` al momento del pago (test `test_price_paid_kept_when_service_price_changes`) | Resuelto (US-01 B, rama `feature/US-01b-pago`) |
 | H-16 | 2026-10-25 | Código muerto | `format_cl_phone` no se usaba en ningún lugar del proyecto | Plan de US-04 | Eliminada junto con la validación chilena | Resuelto (US-04, PR #13) |
 | H-17 | 2026-10-25 | Configuración | El `backend/.env` local (no versionado) tenía `America/Santiago` y `CLP` y tiene prioridad sobre el código: la app seguía como Chile | Plan de US-04; confirmado por el test `test_config_panama`, que falló | Se actualizó el `.env` local; cada integrante debe actualizar el suyo (ver ARQUITECTURA.md §5) | Resuelto (local) |
 | H-18 | 2026-10-25 | Testing | Los tests leen el `.env` del desarrollador: el resultado de `test_config_panama` depende de la configuración local de cada integrante | Fallo de `test_config_panama` | Opción B: los tests fijan zona horaria, moneda, horario y días cerrados con variables de entorno | Resuelto (rama `test/aislar-config`) |
-| H-19 | 2026-10-26 | Testing (riesgo) | La configuración de prueba (BD temporal) estaba dentro de `test_booking.py`. Un segundo archivo de tests que importara la app antes habría usado la BD real del `.env`, y el fixture `drop_all` la habría borrado | Al planificar `test_accounts.py` | Se movió la configuración y el fixture a `tests/conftest.py`, que pytest carga antes que cualquier test | Resuelto (US-01 A) |
+| H-19 | 2026-10-26 | Testing (riesgo) | La configuración de prueba (BD temporal) estaba dentro de `test_booking.py`. Un segundo archivo de tests que importara la app antes habría usado la BD real del `.env`, y el fixture `drop_all` la habría borrado | Al planificar `test_accounts.py` | Se movió la configuración y el fixture a `tests/conftest.py`, que pytest carga antes que cualquier test | Resuelto (US-01 A, PR #16) |
 | H-20 | 2026-10-26 | Limitación conocida | No se verifica que el correo pertenezca al cliente: la app no envía correos | Decisión de diseño de US-01 | Documentado; fuera del alcance de esta versión | Aceptado |
 | H-21 | 2026-10-26 | Deuda técnica (original) | `Appointment.created_at` usa `datetime.utcnow`, obsoleto en Python 3.12 (genera advertencias en los tests) | Advertencias de pytest | Las tablas nuevas usan `utc_now()`; la del código original se deja igual por ahora | Pendiente (menor) |
+| H-22 | 2026-10-26 | Seguridad (original) | El mensaje final de la reserva insertaba el celular escrito por el usuario como HTML | Revisión al modificar ese mensaje en US-01 B | Se escapa el texto (`esc()`) en ese mensaje | Resuelto (US-01 B) |
+| H-23 | 2026-10-26 | Seguridad (original) | El panel admin inserta como HTML el nombre del cliente (`innerHTML`). Cualquier visitante puede reservar con un nombre que contenga código, y ese código se ejecutaría en el navegador del administrador (XSS almacenado) | Revisión del panel admin al agregar la columna Pago | Propuesta: mostrar nombre, teléfono y nota como texto en el panel admin | Pendiente (decisión del equipo) |
 
 ---
 
@@ -71,6 +74,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 2 | 2026-10-25 | Intentó instalar dependencias en Python 3.13 sin verificar compatibilidad con las versiones fijadas | El proyecto fija Python 3.12 (`render.yaml`); dos paquetes no tienen binarios para 3.13 | Se instaló Python 3.12 (H-01) |
 | 3 | 2026-10-25 | Corrigió H-05 haciendo que `loadSlots()` borrara la hora, sin revisar que el `catch` del botón Confirmar también llamaba a `loadSlots()` | Efecto secundario: tras un error de validación se perdía la hora elegida. La IA solo validó sintaxis, no el flujo en el navegador | Detectado por QA manual; corregido en H-10 |
 | 4 | 2026-10-25 | Encadenó en un solo comando la edición de la bitácora (script) con el commit y el push; el script falló y el commit `570ba14` se subió diciendo que incluía la bitácora sin incluirla | El commit no se condicionó al éxito del script y el mensaje describía un cambio inexistente | Detectado por la IA al revisar la salida; corregido con el commit `2dd437f` |
+| 5 | 2026-10-26 | Escribió en un test la aserción `"123" not in appt.payment_last4`, que se cumple siempre y no prueba nada sobre el CVV | Aserción vacía: daba falsa seguridad | Detectado por la IA al revisar sus tests antes del commit; reemplazada por una verificación de que no existe columna para el CVV ni el número |
 
 ---
 
@@ -112,6 +116,8 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 20 | 2026-10-26 | Una sola tarjeta guardada por cliente (guardar otra reemplaza la anterior) | Varias tarjetas | Samuel Saenz |
 | 21 | 2026-10-26 | Mostrar en el panel admin si la cita está pagada (columna "Pago", PR B) | No mostrarlo | Samuel Saenz |
 | 22 | 2026-10-26 | Aceptar como limitación que el correo no se verifica (H-20) | Enviar correo de verificación | Samuel Saenz |
+| 23 | 2026-10-26 | El pago (simulado) es obligatorio para toda reserva nueva | Pago opcional | Samuel Saenz |
+| 24 | 2026-10-26 | Incluir la tarjeta de prueba rechazada `4000 0000 0000 0002` para validar el caso de pago fallido | Solo tarjetas aprobadas | Samuel Saenz |
 
 ---
 
@@ -129,6 +135,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 2026-10-25 | `pytest -q` misma config, tras aislar los tests | 14/14 OK | H-18 resuelto; también 14/14 con la config normal |
 | 2026-10-25 | `pytest -q` (US-02) | 23/23 OK | 9 tests nuevos: estados del mes, día lleno, coherencia con horarios del día, límite de 3 meses, `today` en zona del negocio (H-12), mes inválido y servicio inexistente |
 | 2026-10-26 | `pytest -q` (US-01 A) | 40/40 OK | 17 tests nuevos en `test_accounts.py`: hash de contraseña, registro (válido, duplicado, inválidos), login, mismo mensaje para correo inexistente y contraseña incorrecta, bloqueo y desbloqueo, logout, sesión vencida, reserva con sesión, como invitado y con token falso |
+| 2026-10-26 | `pytest -q` (US-01 B) | 59/59 OK | 19 tests nuevos en `test_payments.py` (Luhn, marcas, errores de tarjeta, pago obligatorio, tarjeta rechazada sin cita, precio pagado fijo, tarjeta guardada, una por cliente, sesión requerida); 7 tests existentes adaptados al pago obligatorio |
 
 ## 7. Pruebas manuales (QA)
 
@@ -147,5 +154,12 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | QA-11 | 2026-10-25 | US-02: reservar descuenta horarios | Reservar y recargar | El día muestra un horario menos | ✅ Verificado con las reservas del 27-10 | Samuel Saenz | PR #15 |
 | QA-12 | 2026-10-25 | US-02: pocos cupos | Servicio *Jornada* (480 min); reservar *Corte de pelo* 10:00 y 10:30 el 27-10; elegir *Jornada* | El 27 muestra 3 en ámbar | ✅ 3 en ámbar (captura) | Samuel Saenz | PR #15 |
 | QA-13 | 2026-10-25 | US-02: día lleno | Con *Jornada*, reservar el 27-10 a las 12:00 | El 27 pasa a "lleno" en rojo | ✅ Confirmado por el QA | Samuel Saenz | PR #15 |
+| QA-14 | 2026-10-26 | US-01 A: crear cuenta | Ingresar → Crear cuenta con correo, contraseña ≥ 8 y celular +507 | Aparecen el nombre y "Salir" | ✅ Como se esperaba | Samuel Saenz | PR #16 |
+| QA-15 | 2026-10-26 | US-01 A: datos precargados | Reservar con sesión | Nombre, celular y aviso verde en el paso 3 | ✅ Como se esperaba | Samuel Saenz | PR #16 |
+| QA-16 | 2026-10-26 | US-01 A: persistencia de sesión | Recargar la página | Sigue la sesión iniciada | ✅ Como se esperaba | Samuel Saenz | PR #16 |
+| QA-17 | 2026-10-26 | US-01 A: salir y volver a entrar | Salir; ingresar con el mismo correo y contraseña | Sesión iniciada de nuevo | ✅ Como se esperaba | Samuel Saenz | PR #16 |
+| QA-18 | 2026-10-26 | US-01 A: bloqueo por intentos | 5 contraseñas incorrectas; luego la correcta | "Cuenta bloqueada…" | ✅ Indica esperar 15 min | Samuel Saenz | PR #16 |
+| QA-19 | 2026-10-26 | US-01 A: reserva como invitado | Reservar sin sesión | Reserva creada como antes | ✅ Como se esperaba | Samuel Saenz | PR #16 |
+| QA-20 | 2026-10-26 | Título del calendario | Abrir el calendario | "Octubre de 2026" | ✅ Corregido | Samuel Saenz | PR #16 |
 
 > Nota QA-04: la reserva exitosa se hizo en otro horario (27-10 15:00), no como continuación directa de QA-03; la secuencia "error → corregir teléfono → confirmar mismo horario" no quedó registrada por separado.
