@@ -32,6 +32,21 @@
   .brand i{color:var(--accent)}
   .admin-link{color:var(--muted);font-size:.9rem;font-weight:600;transition:color .2s}
   .admin-link:hover{color:var(--accent-2)}
+  .nav-right{display:flex;align-items:center;gap:18px}
+  .acct-btn{background:transparent;border:1.5px solid var(--border);color:var(--text);border-radius:10px;padding:7px 12px;
+    font:inherit;font-size:.86rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:border-color .2s}
+  .acct-btn:hover{border-color:var(--accent)}
+  .acct-name{color:var(--muted);font-size:.86rem;font-weight:600}
+
+  /* Ventana de acceso (US-01) */
+  .modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px}
+  .modal.open{display:flex}
+  .modal .card{width:100%;max-width:420px;margin:0}
+  .tabs{display:flex;gap:6px;margin:6px 0 18px}
+  .tab{flex:1;background:var(--bg-soft);border:1.5px solid var(--border);border-radius:10px;padding:9px;color:var(--muted);font:inherit;font-weight:700;cursor:pointer}
+  .tab.active{border-color:var(--accent);color:var(--text)}
+  .modal-close{float:right;background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer}
+  .session-note{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:10px;padding:10px 14px;font-size:.86rem;margin-bottom:16px;display:none}
 
   .hero{padding:48px 0 10px;text-align:center;position:relative}
   .hero::before{content:"";position:absolute;top:-40px;left:50%;transform:translateX(-50%);width:460px;height:300px;
@@ -69,7 +84,7 @@
   /* Calendario mensual (US-02) */
   .cal{background:var(--bg-soft);border:1px solid var(--border);border-radius:14px;padding:14px}
   .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-  .cal-title{font-weight:700;text-transform:capitalize}
+  .cal-title{font-weight:700}
   .cal-nav{background:transparent;border:1.5px solid var(--border);color:var(--text);border-radius:10px;width:36px;height:36px;cursor:pointer;transition:border-color .16s}
   .cal-nav:hover:not(:disabled){border-color:var(--accent)} .cal-nav:disabled{opacity:.3;cursor:not-allowed}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
@@ -126,7 +141,10 @@
   <div class="wrap">
     <nav>
       <div class="brand"><i class="fa-solid fa-calendar-check"></i><span id="brandName">CitaFácil</span></div>
-      <a class="admin-link" href="admin.html"><i class="fa-solid fa-lock"></i> Panel admin</a>
+      <div class="nav-right">
+        <div id="acctArea"><button type="button" class="acct-btn" id="loginOpen"><i class="fa-solid fa-user"></i> Ingresar</button></div>
+        <a class="admin-link" href="admin.html"><i class="fa-solid fa-lock"></i> Panel admin</a>
+      </div>
     </nav>
   </div>
 </header>
@@ -184,6 +202,7 @@
       <h2><i class="fa-solid fa-user"></i> Tus datos</h2>
       <p class="hint">Para confirmarte la reserva por WhatsApp.</p>
       <div class="summary" id="summary"></div>
+      <div class="session-note" id="sessionNote"></div>
       <div class="field"><label for="name">Nombre y apellido</label><input id="name" placeholder="Ej: Camila Rojas" autocomplete="name" /></div>
       <div class="field"><label for="phone">Celular (WhatsApp)</label><input id="phone" placeholder="+507 6XXX XXXX" inputmode="tel" autocomplete="tel" /></div>
       <div class="field"><label for="notes">Nota (opcional)</label><input id="notes" placeholder="Algo que debamos saber" /></div>
@@ -202,6 +221,27 @@
     </div>
   </div>
 </main>
+
+<!-- Ventana de acceso: iniciar sesión / crear cuenta (US-01) -->
+<div class="modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+  <div class="card">
+    <button type="button" class="modal-close" id="authClose" aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+    <h2 id="authTitle"><i class="fa-solid fa-user"></i> Tu cuenta</h2>
+    <p class="hint">Guarda tus datos para reservar más rápido.</p>
+    <div class="tabs">
+      <button type="button" class="tab active" id="tabLogin">Ingresar</button>
+      <button type="button" class="tab" id="tabRegister">Crear cuenta</button>
+    </div>
+    <div id="regFields" style="display:none">
+      <div class="field"><label for="regName">Nombre y apellido</label><input id="regName" autocomplete="name" /></div>
+      <div class="field"><label for="regPhone">Celular (WhatsApp)</label><input id="regPhone" placeholder="+507 6XXX XXXX" inputmode="tel" autocomplete="tel" /></div>
+    </div>
+    <div class="field"><label for="authEmail">Correo</label><input id="authEmail" type="email" autocomplete="email" /></div>
+    <div class="field"><label for="authPass">Contraseña</label><input id="authPass" type="password" autocomplete="current-password" /></div>
+    <button type="button" class="btn" id="authSubmit"><i class="fa-solid fa-right-to-bracket"></i> Ingresar</button>
+    <div class="msg" id="authMsg"></div>
+  </div>
+</div>
 
 <footer>
   <div class="wrap">
@@ -369,7 +409,8 @@
   function renderMonth(){
     const data = state.cal, grid = $("calGrid");
     const [y, m] = data.month.split("-").map(Number);
-    $("calTitle").textContent = new Date(y, m - 1, 1).toLocaleDateString("es-PA",{month:"long", year:"numeric"});
+    const title = new Date(y, m - 1, 1).toLocaleDateString("es-PA",{month:"long", year:"numeric"});
+    $("calTitle").textContent = title.charAt(0).toUpperCase() + title.slice(1); // "Octubre de 2026"
     $("calPrev").disabled = data.month <= data.today.slice(0,7);
     $("calNext").disabled = data.month >= data.max_date.slice(0,7);
 
@@ -456,7 +497,7 @@
     try{
       const payload={customer_name:name, customer_phone:phone, service_id:state.service.id,
         start_at:`${state.date}T${state.time}:00`, notes:$("notes").value.trim()};
-      await api("/api/appointments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}, 65000);
+      await api("/api/appointments",{method:"POST",headers:Object.assign({"Content-Type":"application/json"}, authHeaders()),body:JSON.stringify(payload)}, 65000);
       const d=new Date(state.date+"T"+state.time);
       const fecha=d.toLocaleDateString("es-PA",{weekday:"long",day:"2-digit",month:"long"});
       $("doneMsg").innerHTML=`Te esperamos el <b>${fecha}</b> a las <b>${state.time}</b>.<br>Te enviamos la confirmación por WhatsApp a ${phone}.`;
@@ -473,6 +514,96 @@
     }finally{ btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-check"></i> Confirmar reserva'; }
   });
 
+  /* ====== CUENTA DE CLIENTE (US-01) ====== */
+  // La sesión ({token, customer}) se guarda en localStorage; el token viaja en la
+  // cabecera Authorization. Sin sesión se reserva como invitado.
+  const SESSION_KEY = "citafacil_session";
+  let session = null;
+  try{ session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); }catch(e){ session = null; }
+
+  function authHeaders(){ return session ? {"Authorization": "Bearer " + session.token} : {}; }
+  const fmtPhone = p => /^\+507\d{8}$/.test(p) ? `+507 ${p.slice(4,8)} ${p.slice(8)}` : p;
+
+  function saveSession(s){
+    session = s;
+    try{ s ? localStorage.setItem(SESSION_KEY, JSON.stringify(s)) : localStorage.removeItem(SESSION_KEY); }catch(e){}
+    renderAccount();
+  }
+
+  function renderAccount(){
+    const area = $("acctArea"), note = $("sessionNote");
+    if(session){
+      const c = session.customer;
+      area.innerHTML = '<span class="acct-name"><i class="fa-solid fa-circle-user"></i> <span id="acctFirst"></span></span> '
+        + '<button type="button" class="acct-btn" id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i> Salir</button>';
+      $("acctFirst").textContent = c.name.split(" ")[0]; // texto, no HTML (el nombre lo escribe el usuario)
+      $("logoutBtn").onclick = logout;
+      $("name").value = c.name;
+      $("phone").value = fmtPhone(c.phone);
+      note.style.display = "block";
+      note.textContent = `Reservando como ${c.email}. Usamos tus datos guardados.`;
+    }else{
+      area.innerHTML = '<button type="button" class="acct-btn" id="loginOpen"><i class="fa-solid fa-user"></i> Ingresar</button>';
+      $("loginOpen").onclick = ()=>openAuth("login");
+      note.style.display = "none";
+    }
+  }
+
+  let authMode = "login";
+  function openAuth(mode){
+    authMode = mode;
+    const reg = mode === "register";
+    $("tabLogin").classList.toggle("active", !reg);
+    $("tabRegister").classList.toggle("active", reg);
+    $("regFields").style.display = reg ? "block" : "none";
+    $("authPass").setAttribute("autocomplete", reg ? "new-password" : "current-password");
+    $("authPass").placeholder = reg ? "Mínimo 8 caracteres" : "";
+    $("authSubmit").innerHTML = reg ? '<i class="fa-solid fa-user-plus"></i> Crear cuenta' : '<i class="fa-solid fa-right-to-bracket"></i> Ingresar';
+    $("authMsg").className = "msg";
+    $("authModal").classList.add("open");
+    $("authEmail").focus();
+  }
+  function closeAuth(){ $("authModal").classList.remove("open"); $("authPass").value = ""; }
+
+  $("tabLogin").onclick = ()=>openAuth("login");
+  $("tabRegister").onclick = ()=>openAuth("register");
+  $("authClose").onclick = closeAuth;
+  $("authModal").addEventListener("click", e=>{ if(e.target === $("authModal")) closeAuth(); });
+  document.addEventListener("keydown", e=>{ if(e.key === "Escape") closeAuth(); });
+
+  $("authSubmit").addEventListener("click", async ()=>{
+    const msg = $("authMsg"), btn = $("authSubmit");
+    const body = {email: $("authEmail").value.trim(), password: $("authPass").value};
+    if(authMode === "register"){ body.name = $("regName").value.trim(); body.phone = $("regPhone").value.trim(); }
+    msg.className = "msg"; btn.disabled = true;
+    try{
+      const s = await api(`/api/auth/${authMode}`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)}, 65000);
+      saveSession({token: s.token, customer: s.customer});
+      closeAuth();
+    }catch(e){
+      msg.className = "msg err"; msg.textContent = e.message;
+    }finally{ btn.disabled = false; }
+  });
+
+  async function logout(){
+    try{ await api("/api/auth/logout", {method:"POST", headers:authHeaders()}, 15000); }catch(e){ /* se cierra igual en el navegador */ }
+    saveSession(null);
+    $("name").value = ""; $("phone").value = "";
+  }
+
+  // Al cargar: si hay sesión guardada, se valida contra el backend (puede haber vencido).
+  async function restoreSession(){
+    renderAccount();
+    if(!session) return;
+    try{
+      const c = await api("/api/me", {headers:authHeaders()}, 65000);
+      saveSession({token: session.token, customer: c});
+    }catch(e){
+      if(e.status === 401) saveSession(null);
+    }
+  }
+
+  restoreSession();
   init();
 </script>
 </body>
