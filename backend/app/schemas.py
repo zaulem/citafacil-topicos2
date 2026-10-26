@@ -208,6 +208,72 @@ class MonthAvailabilityOut(BaseModel):
     days: list[DayAvailabilityOut]
 
 
+# ---------- Previsión de demanda (US-03) ----------
+class ForecastKpis(BaseModel):
+    expected_appointments: float
+    booked_appointments: int
+    expected_revenue_cents: int
+    expected_occupancy_pct: float
+    trend_pct_per_week: float
+
+
+class HistoryWeek(BaseModel):
+    week_start: str
+    appointments: int
+    revenue_cents: int
+
+
+class ForecastWeek(BaseModel):
+    week_start: str
+    expected: float
+    booked: int
+
+
+class ForecastDay(BaseModel):
+    date: str
+    expected: float
+    booked: int
+    expected_occupancy_pct: float
+    booked_occupancy_pct: float
+
+
+class WeekdayOccupancy(BaseModel):
+    weekday: str
+    avg_appointments: float
+    historical_occupancy_pct: float
+    expected_occupancy_pct: float
+
+
+class HourOccupancy(BaseModel):
+    hour: str
+    occupancy_pct: float
+
+
+class ServiceRevenue(BaseModel):
+    service: str
+    appointments: int
+    revenue_cents: int
+
+
+class Suggestion(BaseModel):
+    level: str = Field(..., description="high | low | info")
+    text: str
+
+
+class ForecastOut(BaseModel):
+    months: int
+    today: str
+    horizon_end: str
+    kpis: ForecastKpis
+    history: list[HistoryWeek]
+    forecast_weekly: list[ForecastWeek]
+    forecast_daily: list[ForecastDay]
+    by_weekday: list[WeekdayOccupancy]
+    by_hour: list[HourOccupancy]
+    by_service: list[ServiceRevenue]
+    suggestions: list[Suggestion]
+
+
 # ---------- Otros ----------
 class ConfigOut(BaseModel):
     business_name: str

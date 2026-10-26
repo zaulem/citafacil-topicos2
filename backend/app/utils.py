@@ -1,8 +1,9 @@
 """Utilidades: validación de teléfono panameño y manejo de fechas locales."""
 from __future__ import annotations
 
+import calendar
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 from .config import settings
@@ -30,6 +31,13 @@ def normalize_pa_phone(raw: str) -> str:
             "Número de celular panameño inválido. Usa el formato +507 6XXX XXXX."
         )
     return "+507" + digits
+
+
+def add_months(d: date, months: int) -> date:
+    """Mismo día `months` meses después (o el último día si ese mes es más corto)."""
+    y, m = divmod(d.month - 1 + months, 12)
+    year, month = d.year + y, m + 1
+    return date(year, month, min(d.day, calendar.monthrange(year, month)[1]))
 
 
 def utc_now() -> datetime:
