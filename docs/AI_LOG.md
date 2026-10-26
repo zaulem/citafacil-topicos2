@@ -65,6 +65,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 1 | 2026-10-25 | Intentó `git push` asumiendo que había credenciales disponibles | El agente no tenía sesión de GitHub; el push falló | Push manual por el usuario (H-00) |
 | 2 | 2026-10-25 | Intentó instalar dependencias en Python 3.13 sin verificar compatibilidad con las versiones fijadas | El proyecto fija Python 3.12 (`render.yaml`); dos paquetes no tienen binarios para 3.13 | Se instaló Python 3.12 (H-01) |
 | 3 | 2026-10-25 | Corrigió H-05 haciendo que `loadSlots()` borrara la hora, sin revisar que el `catch` del botón Confirmar también llamaba a `loadSlots()` | Efecto secundario: tras un error de validación se perdía la hora elegida. La IA solo validó sintaxis, no el flujo en el navegador | Detectado por QA manual; corregido en H-10 |
+| 4 | 2026-10-25 | Encadenó en un solo comando la edición de la bitácora (script) con el commit y el push; el script falló y el commit `570ba14` se subió diciendo que incluía la bitácora sin incluirla | El commit no se condicionó al éxito del script y el mensaje describía un cambio inexistente | Detectado por la IA al revisar la salida; corregido con el commit `2dd437f` |
 
 ---
 
