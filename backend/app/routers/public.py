@@ -7,7 +7,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas
+from .. import crud, models, schemas
+from ..auth import optional_customer
 from ..availability import generate_slots, is_slot_free, max_booking_date, month_overview
 from ..config import settings
 from ..database import get_db
@@ -78,7 +79,12 @@ def get_month_availability(
     status_code=201,
     summary="Crear una reserva",
 )
-def create_appointment(payload: schemas.AppointmentCreate, db: Session = Depends(get_db)):
+def create_appointment(
+    payload: schemas.AppointmentCreate,
+    db: Session = Depends(get_db),
+    customer: Optional[models.Customer] = Depends(optional_customer),
+):
+    """Con sesión iniciada la cita queda asociada al cliente; sin sesión, es de invitado."""
     service = crud.get_service(db, payload.service_id)
     if not service or not service.active:
         raise HTTPException(status_code=404, detail="Servicio no encontrado.")
@@ -88,7 +94,7 @@ def create_appointment(payload: schemas.AppointmentCreate, db: Session = Depends
             detail="Ese horario ya no está disponible. Por favor elige otro.",
         )
     end_at = payload.start_at + timedelta(minutes=service.duration_min)
-    appt = crud.create_appointment(db, payload, service, end_at)
+    appt = crud.create_appointment(db, payload, service, end_at, customer)
 
     # Confirmación por WhatsApp (real si Twilio está configurado; simulada si no)
     body = confirmation_message(

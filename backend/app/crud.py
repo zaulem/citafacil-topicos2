@@ -42,11 +42,34 @@ def delete_service(db: Session, service: models.Service) -> None:
     db.commit()
 
 
+# ---------- Clientes ----------
+def get_customer_by_email(db: Session, email: str) -> Optional[models.Customer]:
+    return db.query(models.Customer).filter(models.Customer.email == email.strip().lower()).first()
+
+
+def create_customer(db: Session, data: schemas.CustomerRegister, password_hash: str) -> models.Customer:
+    obj = models.Customer(
+        email=data.email,
+        password_hash=password_hash,
+        name=data.name.strip(),
+        phone=data.phone,
+    )
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
 # ---------- Citas ----------
 def create_appointment(
-    db: Session, data: schemas.AppointmentCreate, service: models.Service, end_at: datetime
+    db: Session,
+    data: schemas.AppointmentCreate,
+    service: models.Service,
+    end_at: datetime,
+    customer: Optional[models.Customer] = None,
 ) -> models.Appointment:
     obj = models.Appointment(
+        customer_id=customer.id if customer else None,
         customer_name=data.customer_name.strip(),
         customer_phone=data.customer_phone,
         service_id=service.id,

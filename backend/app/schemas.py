@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from .models import VALID_STATUSES
 from .utils import PhoneError, normalize_pa_phone, to_local_naive
@@ -59,6 +59,7 @@ class AppointmentCreate(BaseModel):
 class AppointmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    customer_id: Optional[int] = None
     customer_name: str
     customer_phone: str
     service_id: int
@@ -80,6 +81,51 @@ class AppointmentStatusUpdate(BaseModel):
         if v not in VALID_STATUSES:
             raise ValueError(f"Estado inválido. Debe ser uno de: {sorted(VALID_STATUSES)}")
         return v
+
+
+# ---------- Cuentas de cliente (US-01) ----------
+class CustomerRegister(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=128)
+    name: str = Field(..., min_length=2, max_length=120)
+    phone: str = Field(..., examples=["+507 6123 4567"])
+
+    @field_validator("email")
+    @classmethod
+    def _lower_email(cls, v: str) -> str:
+        return v.strip().lower()
+
+    @field_validator("phone")
+    @classmethod
+    def _validate_phone(cls, v: str) -> str:
+        try:
+            return normalize_pa_phone(v)
+        except PhoneError as e:
+            raise ValueError(str(e))
+
+
+class CustomerLogin(BaseModel):
+    email: str = Field(..., max_length=254)
+    password: str = Field(..., max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def _lower_email(cls, v: str) -> str:
+        return v.strip().lower()
+
+
+class CustomerOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    email: str
+    name: str
+    phone: str
+
+
+class SessionOut(BaseModel):
+    token: str = Field(..., description="Enviar como cabecera 'Authorization: Bearer <token>'")
+    expires_at: datetime
+    customer: CustomerOut
 
 
 # ---------- Calendario mensual ----------
