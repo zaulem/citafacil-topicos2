@@ -30,7 +30,7 @@ frontend/admin.html  ──┼── fetch → FastAPI ────┼─ router
 | ID | Hallazgo | Tratamiento |
 |---|---|---|
 | H-11 | Router `scores.py` ajeno al dominio, con POST público sin autenticación | Eliminar |
-| H-12 | Fecha mínima en UTC (`toISOString()`): en Panamá desde las 19:00 no se puede reservar para hoy | US-02 |
+| H-12 | Fecha mínima en UTC (`toISOString()`): en Panamá desde las 19:00 no se puede reservar para hoy | Resuelto en US-02 |
 | H-13 | "Ahora" se calcula en hora de Santiago (2 h adelante de Panamá) | Resuelto en US-04 |
 | H-14 | Sin migraciones: no se agregan columnas a tablas existentes | Recrear la BD local (ver §5) |
 | H-15 | La cita no guarda el precio cobrado | `price_paid` en US-01 |
