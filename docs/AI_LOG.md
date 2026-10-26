@@ -25,6 +25,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 6 | 2026-10-25 | Debug | Claude Code | Analizar error "Elige servicio, día y hora" visto al probar | Encontró 2 bugs del original (resumen desincronizado, errores 422 ilegibles) y la restricción de teléfonos chilenos | Corregir bugs ahora; el teléfono se convierte en historia de usuario | H-05, H-06, H-07 |
 | 7 | 2026-10-25 | Configuración | Claude Code | Pregunta: ¿está bien usar Live Server? | Respondió y además creó `.vscode/settings.json` sin que se lo pidieran | Rechazado: se eliminó el archivo y se fijó la regla de confirmar antes de cualquier cambio | H-09 |
 | 8 | 2026-10-25 | Debug | Claude Code | Analizar captura de QA: tras error de teléfono el formulario queda desactivado | Identificó que su propio arreglo de H-05 borraba la hora en cualquier error; propuso recargar horarios solo en 409 | Aceptado tras confirmación | H-10 |
+| 9 | 2026-10-25 | Arquitectura | Claude Code | Analizar la arquitectura para las 3 historias obligatorias + 2 propias (solo lectura) | Mapa de capas, impacto por historia, 5 hallazgos nuevos (H-11–H-15), orden sugerido y texto de Issues ([ARQUITECTURA.md](ARQUITECTURA.md)) | Aceptado parcialmente: se rechazó Alembic, se redujo US-04 a solo Panamá y se cambió el login de teléfono + PIN a correo + contraseña | H-11–H-15 |
 
 ---
 
@@ -43,6 +44,11 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | H-08 | 2026-10-25 | Código muerto | `e.message === "Error 409"` nunca se cumple porque el backend envía un `detail` propio | Revisión de código | Se eliminó al corregir H-10 (ahora se usa `e.status`) | Resuelto (PR #4) |
 | H-09 | 2026-10-25 | Entorno | Live Server recarga la página ante cualquier cambio del workspace (p. ej. `citafacil.db` al reservar) | Análisis preventivo de la IA | Solo se documenta; no se configura nada (la IA lo configuró sin pedirlo y se revirtió, ver Cambios rechazados #2) | Informativo |
 | H-10 | 2026-10-25 | Regresión (IA) | El arreglo de H-05 provocó que, ante cualquier error al confirmar (p. ej. teléfono inválido), se recargaran los horarios y se perdiera la hora elegida | Prueba manual de QA (Samuel Saenz) con número +507 | Recargar horarios solo en 409 (horario tomado); en validación se conserva la selección | Resuelto (PR #4) |
+| H-11 | 2026-10-25 | Código ajeno | `routers/scores.py` es el ranking del videojuego "ÚLTIMA RONDA 3D" del autor original: no tiene relación con reservas y su POST es público sin autenticación | Análisis de arquitectura | Eliminar el router y su registro en `main.py`; la tabla `game_scores` desaparece al recrear la BD local | Pendiente |
+| H-12 | 2026-10-25 | Bug (original) | La fecha mínima del frontend usa `toISOString()` (UTC): en Panamá, desde las 19:00 "hoy" pasa a ser mañana y no se puede reservar para el mismo día | Análisis de arquitectura | Corregir dentro de US-02 (calendario) | Pendiente |
+| H-13 | 2026-10-25 | Configuración | El backend calcula "ahora" con la zona `America/Santiago` (UTC-3), 2 h adelante de Panamá: oculta horarios aún válidos | Análisis de arquitectura | `America/Panama` en US-04 | Pendiente |
+| H-14 | 2026-10-25 | Arquitectura | No hay migraciones: `create_all()` crea tablas nuevas pero no agrega columnas a las existentes | Análisis de arquitectura | Al cambiar el modelo, borrar `backend/citafacil.db` y volver a ejecutar `seed.py` (sin Alembic) | Aceptado |
+| H-15 | 2026-10-25 | Diseño de datos | La cita no guarda el precio cobrado: si cambia el precio del servicio, cambia el histórico de ingresos | Análisis de arquitectura | Guardar `price_paid` en la cita (US-01) para usarlo en US-03 | Pendiente |
 
 ---
 
@@ -62,6 +68,9 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 |---|---|---|---|---|
 | 1 | 2026-10-25 | Opción B: actualizar dependencias para Python 3.13 | Rechazada | Riesgo de cambios de comportamiento antes de empezar las historias; se prefiere la línea base original |
 | 2 | 2026-10-25 | La IA configuró Live Server (`.vscode/settings.json`) sin que se lo pidieran; el usuario solo había preguntado si funcionaba | Rechazada y eliminada | Cambio no solicitado: la consulta era informativa |
+| 3 | 2026-10-25 | Usar Alembic para migraciones (1 dependencia nueva, ~30–45 min) | Rechazada | No aumentar la complejidad; la BD local es desechable y se recrea con `seed.py` |
+| 4 | 2026-10-25 | US-04: selector de país con buscador propio y ~22 países validados en backend | Modificada | Alcance reducido: solo Panamá (+507), igual que el original con Chile |
+| 5 | 2026-10-25 | US-01: login con teléfono + PIN de 6 dígitos y bloqueo tras 5 intentos | Modificada | Se prefiere correo + contraseña (más seguro que un PIN; sin librerías nuevas). Se mantiene el bloqueo por intentos |
 
 ---
 
@@ -75,6 +84,11 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 4 | 2026-10-25 | Corregir H-05 y H-06 de inmediato; H-07 como historia de usuario | Corregir todo dentro de la historia del calendario | Samuel Saenz |
 | 5 | 2026-10-25 | Registrar todos los hallazgos e incidencias en esta bitácora | — | Samuel Saenz |
 | 6 | 2026-10-25 | La IA no hace cambios (código, configuración o archivos) sin confirmación previa | Dejar que la IA actúe por iniciativa propia | Samuel Saenz |
+| 7 | 2026-10-25 | Eliminar el router del videojuego (H-11) por no ser relevante al proyecto | Mantenerlo | Samuel Saenz |
+| 8 | 2026-10-25 | Sin Alembic: recrear la BD local cuando cambie el modelo | Alembic | Samuel Saenz |
+| 9 | 2026-10-25 | US-04 solo para Panamá (+507, `America/Panama`) | Varios países con buscador | Samuel Saenz |
+| 10 | 2026-10-25 | US-01 con correo + contraseña usando solo la biblioteca estándar (`hashlib.scrypt`, `secrets`) | Teléfono + PIN; librerías externas de autenticación | Samuel Saenz |
+| 11 | 2026-10-25 | Aceptar US-05 "Mis reservas" como segunda historia propia | Otra historia | Samuel Saenz |
 
 ---
 
