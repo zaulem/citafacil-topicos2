@@ -31,7 +31,7 @@ frontend/admin.html  ──┼── fetch → FastAPI ────┼─ router
 |---|---|---|
 | H-11 | Router `scores.py` ajeno al dominio, con POST público sin autenticación | Eliminar |
 | H-12 | Fecha mínima en UTC (`toISOString()`): en Panamá desde las 19:00 no se puede reservar para hoy | US-02 |
-| H-13 | "Ahora" se calcula en hora de Santiago (2 h adelante de Panamá) | US-04 |
+| H-13 | "Ahora" se calcula en hora de Santiago (2 h adelante de Panamá) | Resuelto en US-04 |
 | H-14 | Sin migraciones: no se agregan columnas a tablas existentes | Recrear la BD local (ver §5) |
 | H-15 | La cita no guarda el precio cobrado | `price_paid` en US-01 |
 
@@ -89,3 +89,10 @@ del citafacil.db                       # PowerShell: Remove-Item citafacil.db
 $env:PYTHONUTF8=1; python seed.py      # PYTHONUTF8 evita el error de H-04
 ```
 Al iniciar, el backend vuelve a crear las tablas con `create_all()`.
+
+**Configuración local (`backend/.env`, no se sube a GitHub):** desde US-04 debe contener
+```
+BUSINESS_TIMEZONE=America/Panama
+CURRENCY=USD
+```
+El `.env` tiene prioridad sobre los valores del código (H-17). Quien lo creó antes de US-04 debe actualizarlo o volver a copiarlo desde `.env.example`.
