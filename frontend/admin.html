@@ -230,8 +230,10 @@
   function payCell(a){
     if(a.payment_status !== "paid") return '<span class="badge b-unpaid">Sin pago</span>';
     return `<span class="badge b-paid">Pagado ${money(a.price_paid_cents)}</span>`
-      + `<span class="pay-detail mono">${a.payment_brand} •••• ${a.payment_last4}</span>`;
+      + `<span class="pay-detail mono">${esc(a.payment_brand)} •••• ${esc(a.payment_last4)}</span>`;
   }
+  // Escapa texto para insertarlo en HTML: los datos se muestran, nunca se ejecutan (H-23).
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   function fmtDT(iso){ const d=new Date(iso); return d.toLocaleDateString("es-PA",{weekday:"short",day:"2-digit",month:"2-digit"})+" · "+d.toLocaleTimeString("es-PA",{hour:"2-digit",minute:"2-digit"}); }
 
   async function loadAppointments(){
@@ -244,8 +246,9 @@
       list.forEach(a=>{
         const tr=document.createElement("tr");
         const svc = a.service ? a.service.name : ("#"+a.service_id);
-        tr.innerHTML = `<td class="mono">${fmtDT(a.start_at)}</td><td>${a.customer_name}</td>
-          <td class="mono">${a.customer_phone}</td><td>${svc}</td>
+        // H-23: nombre y teléfono los escribe cualquier visitante; se muestran como texto.
+        tr.innerHTML = `<td class="mono">${fmtDT(a.start_at)}</td><td>${esc(a.customer_name)}</td>
+          <td class="mono">${esc(a.customer_phone)}</td><td>${esc(svc)}</td>
           <td>${payCell(a)}</td>
           <td><span class="badge b-${a.status}">${STLABEL[a.status]||a.status}</span></td>
           <td><div class="actions">

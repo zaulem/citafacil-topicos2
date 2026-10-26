@@ -26,7 +26,7 @@ def _next_open_day_at(hour: int):
 
 def _register():
     r = client.post("/api/auth/register", json={
-        "email": "ana@correo.com", "password": "clave-segura-1", "name": "Ana Pérez", "phone": "61234567"})
+        "email": "ana@correo.com", "password": "Clave-segura-1", "name": "Ana Pérez", "phone": "61234567"})
     return {"Authorization": f"Bearer {r.json()['token']}"}
 
 

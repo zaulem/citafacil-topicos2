@@ -45,6 +45,9 @@
   .tabs{display:flex;gap:6px;margin:6px 0 18px}
   .tab{flex:1;background:var(--bg-soft);border:1.5px solid var(--border);border-radius:10px;padding:9px;color:var(--muted);font:inherit;font-weight:700;cursor:pointer}
   .tab.active{border-color:var(--accent);color:var(--text)}
+  .pw-rules{list-style:none;display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:.78rem;color:var(--muted)}
+  .pw-rules li::before{content:"\25CB";margin-right:5px}
+  .pw-rules li.ok{color:var(--ok)} .pw-rules li.ok::before{content:"\2713"}
   .modal-close{float:right;background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer}
   .session-note{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:10px;padding:10px 14px;font-size:.86rem;margin-bottom:16px;display:none}
 
@@ -261,7 +264,14 @@
       <div class="field"><label for="regPhone">Celular (WhatsApp)</label><input id="regPhone" placeholder="+507 6XXX XXXX" inputmode="tel" autocomplete="tel" /></div>
     </div>
     <div class="field"><label for="authEmail">Correo</label><input id="authEmail" type="email" autocomplete="email" /></div>
-    <div class="field"><label for="authPass">Contraseña</label><input id="authPass" type="password" autocomplete="current-password" /></div>
+    <div class="field"><label for="authPass">Contraseña</label><input id="authPass" type="password" autocomplete="current-password" />
+      <ul class="pw-rules" id="pwRules" style="display:none" aria-live="polite">
+        <li data-rule="len">8 caracteres o más</li>
+        <li data-rule="upper">Una mayúscula</li>
+        <li data-rule="lower">Una minúscula</li>
+        <li data-rule="digit">Un número</li>
+      </ul>
+    </div>
     <button type="button" class="btn" id="authSubmit"><i class="fa-solid fa-right-to-bracket"></i> Ingresar</button>
     <div class="msg" id="authMsg"></div>
   </div>
@@ -645,12 +655,22 @@
     $("regFields").style.display = reg ? "block" : "none";
     $("authPass").setAttribute("autocomplete", reg ? "new-password" : "current-password");
     $("authPass").placeholder = reg ? "Mínimo 8 caracteres" : "";
+    $("pwRules").style.display = reg ? "flex" : "none";
+    checkPassword();
     $("authSubmit").innerHTML = reg ? '<i class="fa-solid fa-user-plus"></i> Crear cuenta' : '<i class="fa-solid fa-right-to-bracket"></i> Ingresar';
     $("authMsg").className = "msg";
     $("authModal").classList.add("open");
     $("authEmail").focus();
   }
-  function closeAuth(){ $("authModal").classList.remove("open"); $("authPass").value = ""; }
+  function closeAuth(){ $("authModal").classList.remove("open"); $("authPass").value = ""; checkPassword(); }
+
+  // Guía de la política de contraseña (la regla real la valida el backend).
+  const PW_RULES = {len: p => p.length >= 8, upper: p => /[A-ZÁÉÍÓÚÑ]/.test(p), lower: p => /[a-záéíóúñ]/.test(p), digit: p => /\d/.test(p)};
+  function checkPassword(){
+    const p = $("authPass").value;
+    document.querySelectorAll("#pwRules li").forEach(li => li.classList.toggle("ok", PW_RULES[li.dataset.rule](p)));
+  }
+  $("authPass").addEventListener("input", checkPassword);
 
   $("tabLogin").onclick = ()=>openAuth("login");
   $("tabRegister").onclick = ()=>openAuth("register");
