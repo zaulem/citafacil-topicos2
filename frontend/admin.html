@@ -50,6 +50,7 @@
   .stat{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px}
   .stat .v{font-size:1.8rem;font-weight:800}
   .stat .k{color:var(--muted);font-size:.85rem;font-weight:600}
+  .stat .s{color:var(--muted);font-size:.75rem;margin-top:2px}
   .stat.acc .v{color:var(--accent-2)} .stat.warn .v{color:var(--warn)} .stat.ok .v{color:var(--ok)}
 
   .toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:18px}
@@ -58,6 +59,9 @@
   table{width:100%;border-collapse:collapse;font-size:.9rem}
   th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
   th{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.4px}
+  /* Caja con desplazamiento propio: la lista no empuja la sección de servicios (#20) */
+  .table-box{max-height:460px;overflow:auto;border:1px solid var(--border);border-radius:12px}
+  .table-box thead th{position:sticky;top:0;z-index:1;background:var(--card)}
   tbody tr:hover{background:var(--bg-soft)}
   .badge{font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
   .b-pending{background:rgba(245,158,11,.14);color:var(--warn)}
@@ -86,7 +90,12 @@
   .tabs-bar{display:flex;gap:6px;margin-bottom:22px;border-bottom:1px solid var(--border)}
   .tab{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;color:var(--muted);font:inherit;font-weight:700;padding:10px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:color .2s}
   .tab:hover{color:var(--text)} .tab.active{color:var(--text);border-bottom-color:var(--accent)}
-  .fc-note{color:var(--muted);font-size:.85rem;align-self:center}
+  .fc-note{color:var(--muted);font-size:.85rem;margin:-6px 0 16px}
+  .presets{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:8px;background:rgba(34,211,238,.12);border:1px solid rgba(34,211,238,.45);color:var(--accent-2);border-radius:999px;padding:6px 12px;font-size:.82rem;font-weight:700}
+  .chip button{background:none;border:none;color:inherit;cursor:pointer;font-size:.9rem}
+  .h-hint{color:var(--muted);font-size:.8rem;font-weight:500}
+  .chart-box.short{height:220px}
   .charts{display:grid;grid-template-columns:1fr 1fr;gap:22px}
   .charts .card{margin:0} .charts .wide{grid-column:1/-1}
   @media(max-width:860px){.charts{grid-template-columns:1fr}}
@@ -150,7 +159,7 @@
           <button class="btn ghost sm" onclick="clearFilters()">Limpiar</button>
           <button class="btn sm" id="remindBtn" onclick="runReminders()"><i class="fa-brands fa-whatsapp"></i> Enviar recordatorios</button>
         </div>
-        <div style="overflow-x:auto">
+        <div class="table-box">
           <table>
             <thead><tr><th>Fecha y hora</th><th>Cliente</th><th>Teléfono</th><th>Servicio</th><th>Pago</th><th>Estado</th><th>Acciones</th></tr></thead>
             <tbody id="apptBody"><tr><td colspan="7" class="empty">Cargando…</td></tr></tbody>
@@ -170,28 +179,30 @@
       </div>
       </div>
 
-      <!-- VISTA: VER ESTADÍSTICAS (US-03) -->
+      <!-- VISTA: VER ESTADÍSTICAS (US-03, #20) -->
       <div id="viewStats" class="hide">
         <div class="toolbar">
-          <div class="field"><label for="fcMonths">Previsión a</label>
-            <select id="fcMonths">
-              <option value="1" selected>1 mes</option>
-              <option value="2">2 meses</option>
-              <option value="3">3 meses</option>
-            </select>
+          <div class="field"><label for="fcStart">Desde</label><input type="date" id="fcStart" /></div>
+          <div class="field"><label for="fcEnd">Hasta</label><input type="date" id="fcEnd" /></div>
+          <div class="presets">
+            <button type="button" class="btn ghost sm" data-preset="lastMonth">Último mes</button>
+            <button type="button" class="btn ghost sm" data-preset="nextMonth">Próximo mes</button>
+            <button type="button" class="btn ghost sm" data-preset="wide">Últimos 3 meses + próximo</button>
           </div>
-          <span class="fc-note" id="fcNote"></span>
+          <span class="chip hide" id="fcChip"></span>
+          <button type="button" class="btn ghost sm" id="fcClear"><i class="fa-solid fa-filter-circle-xmark"></i> Limpiar filtros</button>
         </div>
+        <p class="fc-note" id="fcNote"></p>
         <div class="stats" id="fcKpis"></div>
         <div class="card">
           <h2><i class="fa-solid fa-lightbulb"></i> Sugerencias</h2>
           <ul class="sugg" id="fcSugg"></ul>
         </div>
         <div class="charts">
-          <div class="card wide"><h2><i class="fa-solid fa-chart-line"></i> Demanda semanal: histórico y previsión</h2><div class="chart-box"><canvas id="chWeekly"></canvas></div></div>
+          <div class="card wide"><h2><i class="fa-solid fa-scissors"></i> Citas e ingresos por servicio <span class="h-hint">· clic en un servicio para filtrar</span></h2><div class="chart-box short"><canvas id="chService"></canvas></div></div>
+          <div class="card wide"><h2><i class="fa-solid fa-chart-column"></i> Demanda semanal: real y previsión</h2><div class="chart-box"><canvas id="chWeekly"></canvas></div></div>
           <div class="card"><h2><i class="fa-solid fa-calendar-week"></i> Ocupación por día de la semana</h2><div class="chart-box"><canvas id="chWeekday"></canvas></div></div>
-          <div class="card"><h2><i class="fa-solid fa-clock"></i> Ocupación por hora (últimas 8 semanas)</h2><div class="chart-box"><canvas id="chHour"></canvas></div></div>
-          <div class="card wide"><h2><i class="fa-solid fa-sack-dollar"></i> Ingresos por servicio (últimos 6 meses)</h2><div class="chart-box"><canvas id="chService"></canvas></div></div>
+          <div class="card"><h2><i class="fa-solid fa-clock"></i> <span id="hourTitle">Ocupación por hora</span></h2><div class="chart-box"><canvas id="chHour"></canvas></div></div>
         </div>
       </div>
     </div>
@@ -365,23 +376,24 @@
 
   function clearFilters(){ $("fStatus").value=""; $("fDate").value=""; loadAppointments(); }
 
-  /* ====== PESTAÑAS: RESERVAS / VER ESTADÍSTICAS (US-03) ====== */
+  /* ====== PESTAÑAS: RESERVAS / VER ESTADÍSTICAS (US-03, #20) ====== */
   // La previsión se pide solo al abrir "Ver Estadísticas": la entrada al panel sigue rápida.
   function showView(v){
     $("viewRes").classList.toggle("hide", v !== "res");
     $("viewStats").classList.toggle("hide", v !== "stats");
     $("tabRes").classList.toggle("active", v === "res");
     $("tabStats").classList.toggle("active", v === "stats");
-    if(v === "stats") loadForecast();
+    if(v === "stats"){ if($("fcStart").value) loadForecast(); else applyPreset("default"); }
   }
   $("tabRes").onclick = ()=>showView("res");
   $("tabStats").onclick = ()=>showView("stats");
-  $("fcMonths").onchange = loadForecast;
 
   const COLORS = {accent:"#3b82f6", accent2:"#22d3ee", ok:"#22c55e", warn:"#f59e0b", muted:"#9aa7b4", grid:"#232a34"};
-  const HIGH_PCT = 85, LOW_PCT = 40, LOW_HOUR_PCT = 25;  // mismos umbrales que el backend
+  const DIM = "rgba(154,167,180,.3)";
   const fmtDM = iso => iso.slice(8,10) + "/" + iso.slice(5,7);
-  let fcCharts = [];
+  const fmtDMY = iso => fmtDM(iso) + "/" + iso.slice(0,4);
+  const isoDate = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  let fcCharts = [], fcService = null, fcToday = null;
 
   if(typeof Chart !== "undefined"){
     Chart.defaults.color = COLORS.muted;
@@ -389,101 +401,155 @@
     Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
   }
 
-  function chartOptions(yTitle, extra){
-    return Object.assign({
-      responsive: true, maintainAspectRatio: false,
-      interaction: {mode: "index", intersect: false},
-      plugins: {legend: {labels: {boxWidth: 12}}},
-      scales: {y: {beginAtZero: true, title: {display: true, text: yTitle}}},
-    }, extra || {});
+  /* --- Rango de fechas: atajos y campos Desde/Hasta --- */
+  // "Hoy" lo da el backend (zona horaria del negocio); antes de la primera respuesta se usa el navegador.
+  function addDays(iso, n){ const d = new Date(iso + "T00:00"); d.setDate(d.getDate() + n); return isoDate(d); }
+  function addMonths(iso, n){
+    const d = new Date(iso + "T00:00"), day = d.getDate();
+    d.setDate(1); d.setMonth(d.getMonth() + n);
+    d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+    return isoDate(d);
   }
-  const pctScale = {y: {beginAtZero: true, max: 100, title: {display: true, text: "Ocupación (%)"}}};
-  const levelColor = (pct, low) => pct >= HIGH_PCT ? COLORS.warn : (pct <= low ? COLORS.muted : COLORS.accent2);
+  function applyPreset(p){
+    const t = fcToday || isoDate(new Date());
+    const ranges = {
+      default:   [addDays(t, -28), addDays(addMonths(t, 1), -1)],   // últimas 4 semanas + próximo mes
+      lastMonth: [addMonths(t, -1), addDays(t, -1)],
+      nextMonth: [t, addDays(addMonths(t, 1), -1)],
+      wide:      [addMonths(t, -3), addDays(addMonths(t, 1), -1)],
+    };
+    [$("fcStart").value, $("fcEnd").value] = ranges[p];
+    loadForecast();
+  }
+  document.querySelectorAll("[data-preset]").forEach(b => b.onclick = ()=>applyPreset(b.dataset.preset));
+  $("fcStart").onchange = loadForecast;
+  $("fcEnd").onchange = loadForecast;
+  $("fcClear").onclick = ()=>{ fcService = null; applyPreset("default"); };
+
+  /* --- Filtro cruzado: clic en un servicio filtra todo; otro clic en el mismo lo quita --- */
+  function setService(id){ fcService = (id === fcService) ? null : id; loadForecast(); }
 
   async function loadForecast(){
     if(typeof Chart === "undefined"){
       $("fcSugg").innerHTML = '<li class="high">No se pudo cargar la librería de gráficos (Chart.js). Revisa la conexión a internet.</li>';
       return;
     }
+    const params = new URLSearchParams({start: $("fcStart").value, end: $("fcEnd").value});
+    if(fcService) params.set("service_id", fcService);
     $("fcNote").textContent = "Calculando…";
     try{
-      renderForecast(await api(`/api/admin/forecast?months=${$("fcMonths").value}`));
+      renderForecast(await api(`/api/admin/forecast?${params}`));
     }catch(e){
       if(e.status===401){ logout(); return; }
       $("fcNote").textContent = "Error: " + e.message;
     }
   }
 
+  function chartOptions(yTitle, extra){
+    return Object.assign({
+      responsive: true, maintainAspectRatio: false,
+      interaction: {mode: "index", intersect: false},
+      plugins: {legend: {labels: {boxWidth: 12}}},
+      scales: {y: {beginAtZero: true, title: {display: !!yTitle, text: yTitle}}},
+    }, extra || {});
+  }
+  const pctScale = {y: {beginAtZero: true, max: 100, title: {display: true, text: "Ocupación (%)"}}};
+  // El backend clasifica días y horas contra el promedio del negocio (high | low | normal).
+  const LEVEL_COLOR = {high: COLORS.warn, low: COLORS.muted, normal: COLORS.accent2};
+
   function renderForecast(f){
-    $("fcNote").textContent = `Del ${fmtDM(f.today)} al ${fmtDM(f.horizon_end)} · basado en las últimas 8 semanas`;
+    fcToday = f.today;
+    $("fcStart").max = f.max_date;
+    $("fcEnd").max = f.max_date;
+
+    const chip = $("fcChip");
+    chip.classList.toggle("hide", !f.service);
+    if(f.service){
+      chip.innerHTML = `Servicio: <span id="chipName"></span> <button type="button" aria-label="Quitar filtro de servicio">✕</button>`;
+      $("chipName").textContent = f.service.name;
+      chip.querySelector("button").onclick = ()=>setService(f.service.id);
+    }
+    $("fcNote").textContent = `Del ${fmtDMY(f.start)} al ${fmtDMY(f.end)} · días pasados: datos reales · desde hoy: previsión `
+      + `(modelo: últimas 8 semanas)` + (f.service ? ` · la ocupación indica qué parte de la agenda usa «${f.service.name}»` : "");
+
     const k = f.kpis, t = k.trend_pct_per_week;
+    const total = Math.round(k.real_appointments + k.expected_appointments);
     $("fcKpis").innerHTML = `
-      <div class="stat acc"><div class="v">${Math.round(k.expected_appointments)}</div><div class="k">Citas previstas</div></div>
-      <div class="stat ok"><div class="v">${k.booked_appointments}</div><div class="k">Ya reservadas</div></div>
-      <div class="stat"><div class="v">${Math.round(k.expected_occupancy_pct)} %</div><div class="k">Ocupación prevista</div></div>
-      <div class="stat"><div class="v">${money(k.expected_revenue_cents)}</div><div class="k">Ingresos previstos</div></div>
+      <div class="stat acc"><div class="v">${total}</div><div class="k">Citas</div><div class="s">${k.real_appointments} reales · ${Math.round(k.expected_appointments)} previstas</div></div>
+      <div class="stat"><div class="v">${money(k.revenue_cents)}</div><div class="k">Ingresos</div><div class="s">reales + previstos</div></div>
+      <div class="stat"><div class="v">${Math.round(k.occupancy_pct)} %</div><div class="k">Ocupación</div><div class="s">${k.booked_appointments} ya reservadas</div></div>
+      <div class="stat"><div class="v">${money(k.avg_ticket_cents)}</div><div class="k">Ticket promedio</div></div>
+      <div class="stat ${k.cancellation_rate_pct >= 15 ? "warn" : ""}"><div class="v">${k.cancellation_rate_pct} %</div><div class="k">Cancelación</div><div class="s">días pasados del rango</div></div>
       <div class="stat ${t >= 0 ? "ok" : "warn"}"><div class="v">${t > 0 ? "+" : ""}${t} %</div><div class="k">Tendencia semanal</div></div>`;
     $("fcSugg").innerHTML = f.suggestions.map(s => `<li class="${esc(s.level)}">${esc(s.text)}</li>`).join("");
 
     fcCharts.forEach(c => c.destroy());
     fcCharts = [];
 
-    // 1) Demanda semanal: histórico (línea), previsión (punteada) y ya reservado (barras).
-    const h = f.history, w = f.forecast_weekly;
-    const pad = n => Array(n).fill(null);
-    fcCharts.push(new Chart($("chWeekly"), {
+    // 1) Servicios: activa el filtro cruzado. El elegido se resalta y los demás se atenúan.
+    const sv = f.by_service;
+    fcCharts.push(new Chart($("chService"), {
+      type: "bar",
       data: {
-        labels: [...h.map(x => fmtDM(x.week_start)), ...w.map(x => fmtDM(x.week_start))],
-        datasets: [
-          {type: "line", label: "Histórico", data: [...h.map(x => x.appointments), ...pad(w.length)],
-           borderColor: COLORS.accent, backgroundColor: COLORS.accent, tension: .3, pointRadius: 2},
-          // la previsión arranca en el último punto histórico para que las líneas se unan
-          {type: "line", label: "Previsión", data: [...pad(h.length - 1), h.length ? h[h.length-1].appointments : null, ...w.map(x => x.expected)],
-           borderColor: COLORS.accent2, backgroundColor: COLORS.accent2, borderDash: [6, 4], tension: .3, pointRadius: 2},
-          {type: "bar", label: "Ya reservado", data: [...pad(h.length), ...w.map(x => x.booked)],
-           backgroundColor: "rgba(34,197,94,.45)", borderColor: COLORS.ok, borderWidth: 1},
-        ],
+        labels: sv.map(x => x.service),
+        datasets: [{label: "Ingresos", data: sv.map(x => x.revenue_cents / 100),
+                    backgroundColor: sv.map(x => !fcService || x.service_id === fcService ? COLORS.accent2 : DIM)}],
       },
-      options: chartOptions("Citas por semana", {plugins: {tooltip: {callbacks: {title: i => "Semana del " + i[0].label}}}}),
+      options: chartOptions("", {
+        indexAxis: "y",
+        interaction: {mode: "nearest", axis: "y", intersect: false},
+        onClick: (evt, els) => { if(els.length) setService(sv[els[0].index].service_id); },
+        onHover: (evt, els) => { evt.native.target.style.cursor = els.length ? "pointer" : "default"; },
+        plugins: {legend: {display: false}, tooltip: {callbacks: {
+          label: i => `${money(sv[i.dataIndex].revenue_cents)} · ${sv[i.dataIndex].appointments} citas`}}},
+        scales: {x: {beginAtZero: true, title: {display: true, text: "USD"}}},
+      }),
     }));
 
-    // 2) Ocupación por día de la semana: histórico vs. prevista (ámbar = alta, gris = baja).
+    // 2) Demanda semanal: real (pasado) y prevista (desde hoy) apiladas; línea con lo ya reservado.
+    const w = f.weekly;
+    fcCharts.push(new Chart($("chWeekly"), {
+      data: {
+        labels: w.map(x => fmtDM(x.week_start)),
+        datasets: [
+          {type: "bar", label: "Real", data: w.map(x => x.real), backgroundColor: COLORS.accent, stack: "d"},
+          {type: "bar", label: "Previsión", data: w.map(x => x.expected), backgroundColor: "rgba(34,211,238,.45)",
+           borderColor: COLORS.accent2, borderWidth: 1, stack: "d"},
+          {type: "line", label: "Ya reservado", data: w.map(x => x.booked), borderColor: COLORS.ok,
+           backgroundColor: COLORS.ok, tension: .3, pointRadius: 3},
+        ],
+      },
+      options: chartOptions("Citas por semana", {
+        scales: {x: {stacked: true}, y: {stacked: true, beginAtZero: true, title: {display: true, text: "Citas por semana"}}},
+        plugins: {tooltip: {callbacks: {title: i => "Semana del " + i[0].label}}},
+      }),
+    }));
+
+    // 3) Ocupación por día de la semana: real vs. prevista (ámbar = mayor demanda, gris = menor).
     const wd = f.by_weekday;
     fcCharts.push(new Chart($("chWeekday"), {
       type: "bar",
       data: {
         labels: wd.map(x => x.weekday),
         datasets: [
-          {label: "Histórica", data: wd.map(x => x.historical_occupancy_pct), backgroundColor: "rgba(59,130,246,.35)"},
-          {label: "Prevista", data: wd.map(x => x.expected_occupancy_pct), backgroundColor: wd.map(x => levelColor(x.expected_occupancy_pct, LOW_PCT))},
+          {label: "Real", data: wd.map(x => x.real_occupancy_pct), backgroundColor: "rgba(59,130,246,.45)"},
+          {label: "Prevista", data: wd.map(x => x.expected_occupancy_pct),
+           backgroundColor: wd.map(x => LEVEL_COLOR[x.level])},
         ],
       },
       options: chartOptions("", {scales: pctScale}),
     }));
 
-    // 3) Ocupación por hora del día.
+    // 4) Ocupación por hora: con días pasados en el rango usa citas reales; si no, las ya reservadas.
+    $("hourTitle").textContent = "Ocupación por hora " + (f.hour_basis === "real" ? "(citas reales del periodo)" : "(reservas ya tomadas)");
     fcCharts.push(new Chart($("chHour"), {
       type: "bar",
       data: {
         labels: f.by_hour.map(x => x.hour),
-        datasets: [{label: "Ocupación", data: f.by_hour.map(x => x.occupancy_pct), backgroundColor: f.by_hour.map(x => levelColor(x.occupancy_pct, LOW_HOUR_PCT))}],
+        datasets: [{label: "Ocupación", data: f.by_hour.map(x => x.occupancy_pct),
+                    backgroundColor: f.by_hour.map(x => LEVEL_COLOR[x.level])}],
       },
       options: chartOptions("", {scales: pctScale, plugins: {legend: {display: false}}}),
-    }));
-
-    // 4) Ingresos por servicio (precio cobrado).
-    fcCharts.push(new Chart($("chService"), {
-      type: "bar",
-      data: {
-        labels: f.by_service.map(x => x.service),
-        datasets: [{label: "Ingresos", data: f.by_service.map(x => x.revenue_cents / 100), backgroundColor: COLORS.accent2}],
-      },
-      options: chartOptions("", {
-        indexAxis: "y",
-        plugins: {legend: {display: false}, tooltip: {callbacks: {
-          label: i => `${money(f.by_service[i.dataIndex].revenue_cents)} · ${f.by_service[i.dataIndex].appointments} citas`}}},
-        scales: {x: {beginAtZero: true, title: {display: true, text: "USD"}}},
-      }),
     }));
   }
 
