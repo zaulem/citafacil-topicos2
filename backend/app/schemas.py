@@ -82,6 +82,20 @@ class AppointmentStatusUpdate(BaseModel):
         return v
 
 
+# ---------- Calendario mensual ----------
+class DayAvailabilityOut(BaseModel):
+    date: str
+    status: str = Field(..., description="available | full | closed | past | out_of_range")
+    free: int = Field(..., description="Horarios libres ese día")
+
+
+class MonthAvailabilityOut(BaseModel):
+    month: str = Field(..., description="YYYY-MM")
+    today: str = Field(..., description="Fecha de hoy en la zona horaria del negocio")
+    max_date: str = Field(..., description="Último día reservable")
+    days: list[DayAvailabilityOut]
+
+
 # ---------- Otros ----------
 class ConfigOut(BaseModel):
     business_name: str

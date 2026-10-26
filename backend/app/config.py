@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     slot_interval_minutes: int = 30
     # Días cerrados: 0=lunes ... 6=domingo. Por defecto cierra domingo.
     closed_weekdays: str = "6"
+    # Hasta cuántos meses adelante se puede reservar (desde hoy).
+    booking_horizon_months: int = 3
 
     # --- Base de datos ---
     # En local: SQLite. En producción, define DATABASE_URL (PostgreSQL).
