@@ -1,46 +1,18 @@
-"""Tests de la lógica de reservas y de la API."""
-import os
-import tempfile
+"""Tests de la lógica de reservas y de la API.
 
-# Usar una base de datos de prueba aislada ANTES de importar la app.
-# (Se usa el directorio temporal del SO para evitar límites de E/S de
-# sistemas de archivos de red; /tmp fijo no existe en Windows.)
-_TEST_DB = os.path.join(tempfile.gettempdir(), "citafacil_test.db")
-os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB}"
-os.environ["ADMIN_TOKEN"] = "test-token"
-# Configuración del negocio fija: los tests no deben depender del .env local
-# de cada integrante (las variables de entorno tienen prioridad sobre el .env).
-os.environ["BUSINESS_TIMEZONE"] = "America/Panama"
-os.environ["CURRENCY"] = "USD"
-os.environ["OPEN_HOUR"] = "10"
-os.environ["CLOSE_HOUR"] = "20"
-os.environ["SLOT_INTERVAL_MINUTES"] = "30"
-os.environ["CLOSED_WEEKDAYS"] = "6"
-os.environ["BOOKING_HORIZON_MONTHS"] = "3"
+La BD de prueba, la configuración fija y el fixture `fresh_db` están en conftest.py.
+"""
+from datetime import date, timedelta
 
-from datetime import date, timedelta  # noqa: E402
+import pytest
+from fastapi.testclient import TestClient
 
-import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-
-from app import models  # noqa: E402
-from app.database import Base, SessionLocal, engine  # noqa: E402
-from app.main import app  # noqa: E402
-from app.utils import PhoneError, local_now, normalize_pa_phone  # noqa: E402
+from app import models
+from app.database import SessionLocal
+from app.main import app
+from app.utils import PhoneError, local_now, normalize_pa_phone
 
 client = TestClient(app)
-
-
-@pytest.fixture(autouse=True)
-def fresh_db():
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
-    db.add(models.Service(name="Corte", duration_min=30, price_cents=1250, active=True))
-    db.commit()
-    db.close()
-    yield
-    Base.metadata.drop_all(bind=engine)
 
 
 def _next_open_day_at(hour: int):
