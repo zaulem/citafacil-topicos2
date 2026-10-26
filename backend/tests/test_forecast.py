@@ -1,4 +1,4 @@
-"""Tests de la previsión de demanda (US-03 y #20) con datos conocidos."""
+"""Tests de estadísticas reales y previsión (US-03, #20, H-27, H-28) con datos conocidos."""
 from datetime import date, datetime, time, timedelta
 
 import pytest
@@ -16,12 +16,19 @@ ADMIN = {"X-Admin-Token": "test-token"}
 
 TODAY = local_now().date()
 CURRENT_WEEK = TODAY - timedelta(days=TODAY.weekday())
-NEXT_4_WEEKS = (TODAY, TODAY + timedelta(days=27))
+NEXT_4_WEEKS = (TODAY.isoformat(), (TODAY + timedelta(days=27)).isoformat())
 
 
 def _past_week(i: int) -> date:
     """Lunes de la i-ésima semana completa anterior (1 = la semana pasada)."""
     return CURRENT_WEEK - timedelta(weeks=i)
+
+
+def _next_open_day() -> date:
+    d = TODAY + timedelta(days=1)
+    while d.weekday() == 6:
+        d += timedelta(days=1)
+    return d
 
 
 def _service(name="Corte"):
@@ -52,16 +59,15 @@ def _add(day: date, n: int, status=models.STATUS_DONE, price=1250, start_hour=10
     db.close()
 
 
-def _forecast(start=None, end=None, service_id=None, status=200):
+def _get(start=None, end=None, service_id=None, status=200):
     params = {k: v for k, v in {"start": start, "end": end, "service_id": service_id}.items() if v is not None}
     r = client.get("/api/admin/forecast", headers=ADMIN, params=params)
     assert r.status_code == status, r.text
     return r.json()
 
 
-def _days(data, wd, kind=None):
-    return [d for d in data["daily"]
-            if date.fromisoformat(d["date"]).weekday() == wd and (kind is None or d["kind"] == kind)]
+def _fc_days(data, wd):
+    return [d for d in data["forecast"]["daily"] if date.fromisoformat(d["date"]).weekday() == wd]
 
 
 # ---------- Cálculo base ----------
@@ -80,60 +86,136 @@ def test_linear_fit():
     assert _linear_fit([]) == (0.0, 0.0)
 
 
+# ---------- Datos reales (H-28) ----------
+def test_real_counts_reconcile_with_reservations_tab():
+    # H-28: total = registradas + canceladas, y coincide con /api/admin/stats.
+    tue = _past_week(1) + timedelta(days=1)
+    _add(tue, 3)                                                       # realizadas
+    _add(tue, 1, status=models.STATUS_CANCELLED, start_hour=15)        # cancelada pasada
+    _add(_next_open_day(), 2, status=models.STATUS_CONFIRMED)          # reservadas
+    _add(_next_open_day(), 1, status=models.STATUS_CANCELLED, start_hour=16)
+
+    k = _get(_past_week(2).isoformat(), max_booking_date().isoformat())["real"]["kpis"]
+    stats = client.get("/api/admin/stats", headers=ADMIN).json()
+    assert (k["total"], k["registered"], k["done"], k["booked"], k["cancelled"]) == (7, 5, 3, 2, 2)
+    assert k["registered"] + k["cancelled"] == k["total"] == stats["total"]
+    assert k["cancelled"] == stats["cancelled"]
+    assert k["booked"] == stats["upcoming"]
+    assert k["cancellation_rate_pct"] == round(2 / 7 * 100, 1)
+
+
+def test_real_revenue_ticket_and_occupancy():
+    tue = _past_week(2) + timedelta(days=1)
+    _add(tue, 3, price=1000)
+    _add(_next_open_day(), 1, price=1800, status=models.STATUS_PENDING)  # reserva ya pagada
+    data = _get(_past_week(2).isoformat(), (_past_week(2) + timedelta(days=6)).isoformat())
+    k = data["real"]["kpis"]
+    assert (k["revenue_cents"], k["avg_ticket_cents"]) == (3000, 1000)  # la reserva futura está fuera del rango
+    # 3 turnos de 30 min en 6 días abiertos de 600 min = 90 / 3600 = 2.5 %
+    assert k["occupancy_pct"] == 2.5
+    assert data["real"]["basis"] == "done"
+    assert data["real"]["weekly"] == [{"week_start": _past_week(2).isoformat(), "done": 3, "booked": 0, "cancelled": 0}]
+
+    both = _get(_past_week(2).isoformat(), max_booking_date().isoformat())["real"]["kpis"]
+    assert both["revenue_cents"] == 4800  # cobrado = realizadas + reservadas (prepagadas)
+
+
+def test_real_basis_uses_bookings_for_future_only_range():
+    nxt = _next_open_day()
+    _add(nxt, 2, status=models.STATUS_CONFIRMED, start_hour=17)
+    real = _get(nxt.isoformat(), nxt.isoformat())["real"]
+    assert real["basis"] == "booked"
+    assert real["kpis"]["occupancy_pct"] == 10.0
+    assert next(h for h in real["by_hour"] if h["hour"] == "17:00")["occupancy_pct"] == 100.0
+
+
+def test_real_section_never_includes_estimates():
+    # Con histórico, la previsión estima citas a futuro, pero los KPIs reales no cambian.
+    for i in range(1, 9):
+        _add(_past_week(i) + timedelta(days=5), 4)
+    data = _get(*NEXT_4_WEEKS)
+    assert data["forecast"]["kpis"]["expected"] > 0
+    assert data["real"]["kpis"]["registered"] == 0
+
+
+def test_days_classified_against_business_average():
+    # Viernes y sábados 30 %, resto 10 %: con un umbral absoluto todos serían "baja".
+    for i in range(1, 9):
+        for wd in range(6):
+            _add(_past_week(i) + timedelta(days=wd), 6 if wd in (4, 5) else 2)
+    real = _get(_past_week(8).isoformat(), (CURRENT_WEEK - timedelta(days=1)).isoformat())["real"]
+    levels = {w["weekday"]: w["level"] for w in real["by_weekday"]}
+    assert (levels["Vie"], levels["Sáb"]) == ("high", "high")
+    assert {levels[d] for d in ("Lun", "Mar", "Mié", "Jue")} == {"low"}
+    texts = " ".join(s["text"] for s in real["suggestions"])
+    assert "Mayor demanda los viernes y sábados" in texts
+    assert "Previsión" not in texts  # las sugerencias reales no mencionan estimaciones
+
+
+# ---------- Previsión ----------
 def test_constant_demand_split_by_weekday():
     # 8 semanas: 4 citas cada sábado y 1 cada lunes -> 5 por semana, sin tendencia.
     for i in range(1, 9):
         _add(_past_week(i) + timedelta(days=5), 4)
         _add(_past_week(i), 1)
-
-    data = _forecast(*NEXT_4_WEEKS)
-    assert data["kpis"]["trend_pct_per_week"] == 0.0
-    assert {d["expected"] for d in _days(data, 5)} == {4.0}   # sábados
-    assert {d["expected"] for d in _days(data, 0)} == {1.0}   # lunes
-    assert {d["expected"] for d in _days(data, 1)} == {0.0}   # martes
-    # 4 citas × 30 min sobre 600 min de atención = 20 %
-    assert {d["occupancy_pct"] for d in _days(data, 5)} == {20.0}
-    assert all(d["kind"] == "forecast" for d in data["daily"])
+    fc = _get(*NEXT_4_WEEKS)["forecast"]
+    assert fc["kpis"]["trend_pct_per_week"] == 0.0
+    data = {"forecast": fc}
+    assert {d["expected"] for d in _fc_days(data, 5)} == {4.0}   # sábados
+    assert {d["expected"] for d in _fc_days(data, 0)} == {1.0}   # lunes
+    assert {d["expected"] for d in _fc_days(data, 1)} == {0.0}   # martes
+    assert {d["occupancy_pct"] for d in _fc_days(data, 5)} == {20.0}  # 4 × 30 min / 600
 
 
-def test_growing_demand_follows_trend():
-    # Semana más antigua: 1 cita el sábado; la más reciente: 8 -> crece 1 por semana.
+def test_growing_demand_is_damped():
+    # La recta real tiene b = 1 (≈ 22 % del promedio 4.5): se amortigua a ±10 % -> b = 0.45,
+    # re-centrada en el promedio: a = 4.5 - 0.45 × 3.5 = 2.925.
     for i in range(1, 9):
         _add(_past_week(i) + timedelta(days=5), 9 - i)
-
-    data = _forecast(*NEXT_4_WEEKS)
-    assert data["kpis"]["trend_pct_per_week"] == round(1 / 4.5 * 100, 1)
-    for d in _days(data, 5):
+    data = _get(*NEXT_4_WEEKS)
+    assert data["forecast"]["kpis"]["trend_pct_per_week"] == 10.0
+    for d in _fc_days(data, 5):
         weeks_ahead = (date.fromisoformat(d["date"]) - timedelta(days=5) - CURRENT_WEEK).days // 7
-        assert d["expected"] == 1 + 1 * (8 + weeks_ahead)  # recta a + b·x con a = 1, b = 1
+        assert d["expected"] == round(2.925 + 0.45 * (8 + weeks_ahead), 1)
 
 
-# ---------- Rango de fechas (#20) ----------
-def test_past_range_shows_real_data_and_kpis():
-    tue = _past_week(2) + timedelta(days=1)
-    _add(tue, 3, price=1000)
-    _add(tue, 1, status=models.STATUS_CANCELLED, start_hour=15)
-    data = _forecast(_past_week(2).isoformat(), (_past_week(2) + timedelta(days=6)).isoformat())
-
-    day = next(d for d in data["daily"] if d["date"] == tue.isoformat())
-    assert (day["kind"], day["real"], day["expected"], day["occupancy_pct"]) == ("real", 3, None, 15.0)
-    k = data["kpis"]
-    assert (k["real_appointments"], k["expected_appointments"], k["booked_appointments"]) == (3, 0, 0)
-    assert (k["revenue_cents"], k["avg_ticket_cents"]) == (3000, 1000)
-    assert k["cancellation_rate_pct"] == 25.0  # 1 de 4
-    assert data["weekly"] == [{"week_start": _past_week(2).isoformat(), "real": 3, "expected": 0.0, "booked": 0}]
+def test_declining_trend_is_damped_and_floored():
+    # 8, 7, …, 1 citas por semana: sin amortiguar, la recta llega a 0 en pocas semanas.
+    for i in range(1, 9):
+        _add(_past_week(i) + timedelta(days=5), i)
+    data = _get(TODAY.isoformat(), max_booking_date().isoformat())
+    assert data["forecast"]["kpis"]["trend_pct_per_week"] == -10.0
+    sats = [d["expected"] for d in _fc_days(data, 5)]
+    assert min(sats) == 2.2  # piso: 50 % del promedio semanal (4.5 × 0.5 = 2.25)
 
 
-def test_range_mixes_real_past_and_forecast_future():
-    data = _forecast((TODAY - timedelta(days=14)).isoformat(), (TODAY + timedelta(days=14)).isoformat())
-    kinds = {d["kind"] for d in data["daily"]}
-    assert kinds == {"real", "forecast"}
-    assert all(d["kind"] == ("real" if date.fromisoformat(d["date"]) < TODAY else "forecast")
-               for d in data["daily"])
+def test_forecast_never_below_booked_and_additional_excludes_booked():
+    # Servicio sin histórico (modelo = 0) pero con una reserva futura (H-27).
+    nxt = _next_open_day()
+    _add(nxt, 1, status=models.STATUS_CONFIRMED, service="Tinte")
+    fc = _get(nxt.isoformat(), nxt.isoformat(), service_id=_service("Tinte"))["forecast"]
+    assert (fc["daily"][0]["expected"], fc["daily"][0]["booked"]) == (1.0, 1)
+    assert (fc["kpis"]["expected"], fc["kpis"]["booked"], fc["kpis"]["additional"]) == (1.0, 1, 0.0)
+    assert fc["weekly"][0]["additional"] == 0.0
 
 
+def test_forecast_not_available_for_past_range():
+    fc = _get(_past_week(2).isoformat(), (_past_week(2) + timedelta(days=6)).isoformat())["forecast"]
+    assert fc["available"] is False and fc["daily"] == []
+    assert "termina antes de hoy" in fc["suggestions"][0]["text"]
+
+
+def test_forecast_suggestions_are_labelled_as_estimates():
+    for i in range(1, 9):
+        _add(_past_week(i) + timedelta(days=5), 18)  # sábados casi llenos
+    texts = [s["text"] for s in _get(*NEXT_4_WEEKS)["forecast"]["suggestions"]]
+    assert texts and all(t.startswith("Previsión") for t in texts)
+    assert any("sábados estarían casi llenos" in t for t in texts)
+
+
+# ---------- Rango y filtro por servicio ----------
 def test_range_defaults():
-    data = _forecast()
+    data = _get()
     assert data["start"] == (TODAY - timedelta(weeks=4)).isoformat()
     assert data["end"] == (add_months(TODAY, 1) - timedelta(days=1)).isoformat()
     assert data["service"] is None
@@ -153,37 +235,18 @@ def test_range_validation(params, status):
     assert client.get("/api/admin/forecast", headers=ADMIN, params=params).status_code == status
 
 
-def test_hour_basis_uses_bookings_for_future_only_range():
-    nxt = TODAY + timedelta(days=1)
-    while nxt.weekday() == 6:
-        nxt += timedelta(days=1)
-    _add(nxt, 2, status=models.STATUS_CONFIRMED, start_hour=17)
-    data = _forecast(nxt.isoformat(), nxt.isoformat())
-    assert data["hour_basis"] == "booked"
-    assert next(h for h in data["by_hour"] if h["hour"] == "17:00")["occupancy_pct"] == 100.0
-    day = data["daily"][0]
-    assert (day["booked"], day["booked_occupancy_pct"]) == (2, 10.0)
-    assert data["kpis"]["booked_appointments"] == 2
-
-
-# ---------- Filtro por servicio (#20) ----------
-def test_service_filter_applies_to_everything_but_service_list():
+def test_service_filter_matches_service_chart():
+    # El KPI de registradas con un servicio filtrado debe coincidir con su barra en el gráfico.
     for i in range(1, 9):
-        _add(_past_week(i) + timedelta(days=5), 4, service="Corte")   # sábados
-        _add(_past_week(i), 2, service="Tinte", price=1800)          # lunes
+        _add(_past_week(i) + timedelta(days=5), 4, service="Corte")
+        _add(_past_week(i), 2, service="Tinte", price=1800)
+    _add(_next_open_day(), 1, status=models.STATUS_CONFIRMED, service="Tinte")
     tinte = _service("Tinte")
-
-    data = _forecast(*NEXT_4_WEEKS, service_id=tinte)
-    assert data["service"] == {"id": tinte, "name": "Tinte"}
-    assert {d["expected"] for d in _days(data, 0)} == {2.0}   # lunes: solo Tinte
-    assert {d["expected"] for d in _days(data, 5)} == {0.0}   # sábados: Corte no cuenta
-    texts = " ".join(s["text"] for s in data["suggestions"])
-    assert "«Tinte» se concentra los lunes" in texts
-
-    # la lista de servicios no se filtra: sirve para elegir otro
-    past = _forecast(_past_week(8).isoformat(), (CURRENT_WEEK - timedelta(days=1)).isoformat(), service_id=tinte)
-    assert {s["service"] for s in past["by_service"]} == {"Corte", "Tinte"}
-    assert past["kpis"]["real_appointments"] == 16  # solo Tinte: 2 × 8 semanas
+    data = _get(_past_week(8).isoformat(), max_booking_date().isoformat(), service_id=tinte)
+    bar = next(s for s in data["real"]["by_service"] if s["service_id"] == tinte)
+    assert data["real"]["kpis"]["registered"] == bar["appointments"] == 17  # 2 × 8 + 1 reservada
+    assert {s["service"] for s in data["real"]["by_service"]} == {"Corte", "Tinte"}
+    assert "«Tinte» se concentra los lunes" in " ".join(s["text"] for s in data["real"]["suggestions"])
 
 
 def test_revenue_uses_price_paid():
@@ -192,49 +255,23 @@ def test_revenue_uses_price_paid():
     db.query(models.Service).filter_by(name="Corte").first().price_cents = 9999  # cambio posterior
     db.commit()
     db.close()
-    data = _forecast(_past_week(1).isoformat(), (CURRENT_WEEK - timedelta(days=1)).isoformat())
-    assert [(s["service"], s["appointments"], s["revenue_cents"]) for s in data["by_service"]] == [("Corte", 3, 3000)]
-
-
-# ---------- Sugerencias ----------
-def test_empty_history():
-    data = _forecast(*NEXT_4_WEEKS)
-    assert data["kpis"]["expected_appointments"] == 0
-    assert data["suggestions"] == [
-        {"level": "info", "text": "Aún no hay suficiente histórico para generar sugerencias."}]
-
-
-def test_suggestions_full_day_and_low_demand():
-    # Sábados casi llenos (18 × 30 min = 90 %), resto vacío.
-    for i in range(1, 9):
-        _add(_past_week(i) + timedelta(days=5), 18)
-    texts = [s["text"] for s in _forecast(*NEXT_4_WEEKS)["suggestions"]]
-    assert any("sábados están casi llenos" in t for t in texts)
-    assert any("Menor demanda" in t and "lunes" in t for t in texts)
-    assert any("capacidad libre" in t for t in texts)  # promedio (15 %) bajo el 40 %
-
-
-def test_days_classified_against_business_average():
-    # Negocio moderado: viernes y sábados 30 %, resto 10 %. Con un umbral absoluto de 40 %
-    # todos serían "baja demanda"; contra el promedio (≈ 16.7 %) se distinguen.
-    for i in range(1, 9):
-        for wd in range(6):
-            _add(_past_week(i) + timedelta(days=wd), 6 if wd in (4, 5) else 2)
-    data = _forecast(*NEXT_4_WEEKS)
-    levels = {w["weekday"]: w["level"] for w in data["by_weekday"]}
-    assert (levels["Vie"], levels["Sáb"]) == ("high", "high")
-    assert {levels[d] for d in ("Lun", "Mar", "Mié", "Jue")} == {"low"}
-    texts = " ".join(s["text"] for s in data["suggestions"])
-    assert "Mayor demanda los viernes y sábados" in texts
-    assert "casi llenos" not in texts
+    real = _get(_past_week(1).isoformat(), (CURRENT_WEEK - timedelta(days=1)).isoformat())["real"]
+    assert [(s["service"], s["appointments"], s["revenue_cents"]) for s in real["by_service"]] == [("Corte", 3, 3000)]
 
 
 def test_cancellation_suggestion():
     tue = _past_week(1) + timedelta(days=1)
     _add(tue, 3)
     _add(tue, 2, status=models.STATUS_CANCELLED, start_hour=15)  # 40 % canceladas
-    data = _forecast(_past_week(1).isoformat(), (CURRENT_WEEK - timedelta(days=1)).isoformat())
-    assert any("se cancelaron" in s["text"] for s in data["suggestions"])
+    real = _get(_past_week(1).isoformat(), (CURRENT_WEEK - timedelta(days=1)).isoformat())["real"]
+    assert any("se cancelaron" in s["text"] for s in real["suggestions"])
+
+
+def test_empty_range():
+    data = _get(*NEXT_4_WEEKS)
+    assert data["real"]["kpis"]["total"] == 0
+    assert data["forecast"]["suggestions"] == [
+        {"level": "info", "text": "Aún no hay suficiente histórico para generar sugerencias."}]
 
 
 def test_forecast_requires_admin():
