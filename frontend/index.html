@@ -188,13 +188,21 @@
 
   const money = n => "$" + (n||0).toLocaleString("es-CL");
 
+  // FastAPI devuelve `detail` como texto o, en errores de validación (422), como
+  // lista de objetos {msg, loc...}: lo convertimos siempre en un mensaje legible.
+  function errorText(d, status){
+    const det = d && d.detail;
+    if(Array.isArray(det)) return det.map(x=>String(x.msg||x).replace(/^Value error, /,"")).join(" ");
+    return det || ("Error "+status);
+  }
+
   // fetch con timeout opcional (AbortController) para no colgarse en un arranque en frío.
   async function api(path, opts, timeoutMs){
     const ctrl = new AbortController();
     const t = timeoutMs ? setTimeout(()=>ctrl.abort(), timeoutMs) : null;
     try{
       const r = await fetch(API + path, Object.assign({}, opts||{}, {signal: ctrl.signal}));
-      if(!r.ok){ let d; try{d=await r.json()}catch(e){}; throw new Error((d&&d.detail) || ("Error "+r.status)); }
+      if(!r.ok){ let d; try{d=await r.json()}catch(e){}; const err=new Error(errorText(d, r.status)); err.status=r.status; throw err; }
       return r.status===204 ? null : r.json();
     } finally { if(t) clearTimeout(t); }
   }
@@ -269,8 +277,16 @@
     });
   }
 
+  // Al cambiar servicio o fecha la hora elegida deja de valer: se limpia también el
+  // resumen y se vuelve al paso 2 (si no, el resumen mostraba una hora ya descartada).
+  function clearTime(){
+    state.time = null;
+    $("summary").innerHTML = "";
+    if(state.service) setStep(2);
+  }
+
   function selectService(s, el){
-    state.service = s; state.time=null;
+    state.service = s; clearTime();
     document.querySelectorAll(".svc").forEach(x=>x.classList.remove("sel"));
     el.classList.add("sel");
     $("whenHint").textContent = `${s.name} · ${s.duration_min} min · ${money(s.price)}`;
@@ -298,7 +314,7 @@
       return;
     }
 
-    state.date = date; state.time = null;
+    state.date = date; clearTime();
     const myReq = ++slotsReq;
     box.innerHTML = '<div class="empty"><span class="spin"></span> Buscando horarios…</div>';
     try{
@@ -348,8 +364,10 @@
       $("cardDone").scrollIntoView({behavior:"smooth",block:"center"});
     }catch(e){
       msg.className="msg err";
-      msg.textContent = e.message==="Error 409" ? "Ese horario ya fue tomado. Elige otro." : e.message;
-      loadSlots();
+      msg.textContent = e.message;
+      // Solo si el horario ya fue tomado (409) se recargan los horarios; en errores
+      // de validación (p. ej. teléfono) se conserva la hora elegida para corregir el dato.
+      if(e.status===409) loadSlots();
     }finally{ btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-check"></i> Confirmar reserva'; }
   });
 

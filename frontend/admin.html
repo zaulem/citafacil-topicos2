@@ -170,7 +170,13 @@
     opts.headers = Object.assign({"X-Admin-Token": TOKEN}, opts.headers||{});
     const r = await fetch(API + path, opts);
     if(r.status===401 || r.status===422 && path.startsWith("/api/admin")){ /* handled by caller */ }
-    if(!r.ok){ let d; try{d=await r.json()}catch(e){}; const err=new Error((d&&d.detail)||("Error "+r.status)); err.status=r.status; throw err; }
+    if(!r.ok){
+      let d; try{d=await r.json()}catch(e){};
+      // En errores de validación (422) FastAPI devuelve `detail` como lista de objetos.
+      const det = d && d.detail;
+      const text = Array.isArray(det) ? det.map(x=>String(x.msg||x).replace(/^Value error, /,"")).join(" ") : det;
+      const err=new Error(text||("Error "+r.status)); err.status=r.status; throw err;
+    }
     return r.status===204 ? null : r.json();
   }
 
