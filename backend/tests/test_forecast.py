@@ -102,10 +102,36 @@ def test_growing_demand_follows_trend():
         _add(_past_week(i) + timedelta(days=5), 9 - i)
 
     data = _forecast(*NEXT_4_WEEKS)
-    assert data["kpis"]["trend_pct_per_week"] == round(1 / 4.5 * 100, 1)
+    # La recta real tiene b = 1 (≈ 22 % del promedio 4.5): se amortigua a ±10 % -> b = 0.45,
+    # re-centrada en el promedio: a = 4.5 - 0.45 × 3.5 = 2.925.
+    assert data["kpis"]["trend_pct_per_week"] == 10.0
     for d in _days(data, 5):
         weeks_ahead = (date.fromisoformat(d["date"]) - timedelta(days=5) - CURRENT_WEEK).days // 7
-        assert d["expected"] == 1 + 1 * (8 + weeks_ahead)  # recta a + b·x con a = 1, b = 1
+        assert d["expected"] == round(2.925 + 0.45 * (8 + weeks_ahead), 1)
+
+
+def test_declining_trend_is_damped_and_floored():
+    # 8, 7, …, 1 citas por semana: sin amortiguar, la recta llega a 0 en pocas semanas.
+    for i in range(1, 9):
+        _add(_past_week(i) + timedelta(days=5), i)
+    data = _forecast(TODAY.isoformat(), max_booking_date().isoformat())
+    assert data["kpis"]["trend_pct_per_week"] == -10.0
+    sats = [d["expected"] for d in _days(data, 5)]
+    assert min(sats) == 2.2  # piso: 50 % del promedio semanal (4.5 × 0.5 = 2.25)
+    assert all(x > 0 for x in sats)
+
+
+def test_forecast_never_below_booked():
+    # Servicio sin histórico (previsión del modelo = 0) pero con una reserva futura.
+    nxt = TODAY + timedelta(days=1)
+    while nxt.weekday() == 6:
+        nxt += timedelta(days=1)
+    _add(nxt, 1, status=models.STATUS_CONFIRMED, service="Tinte")
+    data = _forecast(nxt.isoformat(), nxt.isoformat(), service_id=_service("Tinte"))
+    day = data["daily"][0]
+    assert (day["expected"], day["booked"]) == (1.0, 1)
+    assert data["kpis"]["expected_appointments"] == 1.0
+    assert data["kpis"]["booked_appointments"] == 1
 
 
 # ---------- Rango de fechas (#20) ----------

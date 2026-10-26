@@ -4,8 +4,12 @@ Método (explicable sin estadística avanzada):
 1. Modelo: se toman las últimas BASELINE_WEEKS semanas completas antes de hoy,
    SIEMPRE las mismas sin importar el rango elegido (si no, un rango solo futuro
    dejaría al modelo sin datos).
-2. Tendencia: recta de mínimos cuadrados sobre el total de citas de cada semana.
-   La semana futura x se estima como `a + b·x` (la semana actual es x = BASELINE_WEEKS).
+2. Tendencia: recta de mínimos cuadrados sobre el total de citas de cada semana,
+   AMORTIGUADA: la pendiente se limita a ±TREND_CAP del promedio por semana y la
+   previsión no baja de TREND_FLOOR del promedio (con pocos datos, un mes flojo no
+   debe proyectar la demanda a cero). La semana futura x se estima como `a + b·x`
+   (la semana actual es x = BASELINE_WEEKS). Un día nunca se prevé por debajo de lo
+   que ya tiene reservado.
 3. Ese total semanal se reparte entre los días según el peso histórico de cada día
    de la semana (p. ej., si los sábados concentran el 25 % de las citas, reciben el 25 %).
 4. Ocupación = tiempo bloqueado en turnos / tiempo de atención del día. Los turnos son
@@ -40,6 +44,8 @@ LOW_OCCUPANCY = 40.0    # % de ocupación promedio bajo el que hay capacidad lib
 REL_HIGH = 1.25         # ≥ 125 % del promedio -> mayor demanda
 REL_LOW = 0.75          # ≤ 75 % del promedio  -> menor demanda
 TREND_ALERT = 3.0       # % de variación semanal que merece una sugerencia
+TREND_CAP = 0.10        # la tendencia usada se limita a ±10 % del promedio semanal por semana
+TREND_FLOOR = 0.5       # la previsión semanal no baja del 50 % del promedio de las 8 semanas
 CANCEL_ALERT = 15.0     # % de cancelaciones que merece una sugerencia
 
 WEEKDAY_SHORT = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
@@ -129,6 +135,10 @@ def build_forecast(db: Session, start: date, end: date, service: Optional[models
         by_hour_count[a.start_at.hour] += 1
     a_fit, b_fit = _linear_fit(totals)
     mean_week = sum(totals) / BASELINE_WEEKS
+    # Tendencia amortiguada: con pocos datos un mes flojo se extrapolaría sin freno y la
+    # previsión caería a cero. Se limita la pendiente y la recta se re-centra en el promedio.
+    b_fit = max(-TREND_CAP * mean_week, min(TREND_CAP * mean_week, b_fit))
+    a_fit = mean_week - b_fit * (BASELINE_WEEKS - 1) / 2
     trend_pct = (b_fit / mean_week * 100) if mean_week else 0.0
     total_base = len(baseline)
     avg_blocked = (sum(_minutes(a) for a in baseline) / total_base) if total_base else 30.0
@@ -139,7 +149,8 @@ def build_forecast(db: Session, start: date, end: date, service: Optional[models
         if not total_base:
             return 0.0
         x = BASELINE_WEEKS + (_week_start(d) - current_week).days // 7
-        return max(0.0, a_fit + b_fit * x) * by_wd_count[d.weekday()] / total_base
+        week_total = max(TREND_FLOOR * mean_week, a_fit + b_fit * x)
+        return week_total * by_wd_count[d.weekday()] / total_base
 
     # ---------- Serie diaria del rango ----------
     day_n: dict[date, int] = defaultdict(int)
@@ -157,10 +168,12 @@ def build_forecast(db: Session, start: date, end: date, service: Optional[models
                 days.append({"date": d.isoformat(), "kind": "real", "real": day_n[d], "expected": None,
                              "booked": None, "occupancy_pct": occ_booked, "booked_occupancy_pct": None})
             else:
-                exp = expected_for(d)
+                # La previsión nunca es menor que lo ya reservado ese día.
+                exp = max(expected_for(d), day_n[d])
+                exp_min = max(expected_for(d) * avg_blocked, day_min[d])
                 days.append({"date": d.isoformat(), "kind": "forecast", "real": None, "expected": round(exp, 1),
                              "booked": day_n[d],
-                             "occupancy_pct": round(min(100.0, exp * avg_blocked / open_min * 100), 1),
+                             "occupancy_pct": round(min(100.0, exp_min / open_min * 100), 1),
                              "booked_occupancy_pct": occ_booked})
         d += timedelta(days=1)
 
