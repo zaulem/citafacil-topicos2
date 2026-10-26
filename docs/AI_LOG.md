@@ -26,6 +26,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 7 | 2026-10-25 | Configuración | Claude Code | Pregunta: ¿está bien usar Live Server? | Respondió y además creó `.vscode/settings.json` sin que se lo pidieran | Rechazado: se eliminó el archivo y se fijó la regla de confirmar antes de cualquier cambio | H-09 |
 | 8 | 2026-10-25 | Debug | Claude Code | Analizar captura de QA: tras error de teléfono el formulario queda desactivado | Identificó que su propio arreglo de H-05 borraba la hora en cualquier error; propuso recargar horarios solo en 409 | Aceptado tras confirmación | H-10 |
 | 9 | 2026-10-25 | Arquitectura | Claude Code | Analizar la arquitectura para las 3 historias obligatorias + 2 propias (solo lectura) | Mapa de capas, impacto por historia, 5 hallazgos nuevos (H-11–H-15), orden sugerido y texto de Issues ([ARQUITECTURA.md](ARQUITECTURA.md)) | Aceptado parcialmente: se rechazó Alembic, se redujo US-04 a solo Panamá y se cambió el login de teléfono + PIN a correo + contraseña | H-11–H-15 |
+| 10 | 2026-10-25 | Código | Claude Code | Eliminar el router del videojuego (H-11) | Borró `scores.py` y sus referencias; 6/6 tests OK; `/api/scores` ya no aparece en las rutas | Aceptado | H-11 |
 
 ---
 
@@ -44,7 +45,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | H-08 | 2026-10-25 | Código muerto | `e.message === "Error 409"` nunca se cumple porque el backend envía un `detail` propio | Revisión de código | Se eliminó al corregir H-10 (ahora se usa `e.status`) | Resuelto (PR #4) |
 | H-09 | 2026-10-25 | Entorno | Live Server recarga la página ante cualquier cambio del workspace (p. ej. `citafacil.db` al reservar) | Análisis preventivo de la IA | Solo se documenta; no se configura nada (la IA lo configuró sin pedirlo y se revirtió, ver Cambios rechazados #2) | Informativo |
 | H-10 | 2026-10-25 | Regresión (IA) | El arreglo de H-05 provocó que, ante cualquier error al confirmar (p. ej. teléfono inválido), se recargaran los horarios y se perdiera la hora elegida | Prueba manual de QA (Samuel Saenz) con número +507 | Recargar horarios solo en 409 (horario tomado); en validación se conserva la selección | Resuelto (PR #4) |
-| H-11 | 2026-10-25 | Código ajeno | `routers/scores.py` es el ranking del videojuego "ÚLTIMA RONDA 3D" del autor original: no tiene relación con reservas y su POST es público sin autenticación | Análisis de arquitectura | Eliminar el router y su registro en `main.py`; la tabla `game_scores` desaparece al recrear la BD local | Pendiente |
+| H-11 | 2026-10-25 | Código ajeno | `routers/scores.py` es el ranking del videojuego "ÚLTIMA RONDA 3D" del autor original: no tiene relación con reservas y su POST es público sin autenticación | Análisis de arquitectura | Se eliminó `routers/scores.py`, su registro y la mención en la descripción de la API (`main.py`); la tabla `game_scores` desaparece al recrear la BD local | Resuelto (rama `chore/eliminar-router-juego`) |
 | H-12 | 2026-10-25 | Bug (original) | La fecha mínima del frontend usa `toISOString()` (UTC): en Panamá, desde las 19:00 "hoy" pasa a ser mañana y no se puede reservar para el mismo día | Análisis de arquitectura | Corregir dentro de US-02 (calendario) | Pendiente |
 | H-13 | 2026-10-25 | Configuración | El backend calcula "ahora" con la zona `America/Santiago` (UTC-3), 2 h adelante de Panamá: oculta horarios aún válidos | Análisis de arquitectura | `America/Panama` en US-04 | Pendiente |
 | H-14 | 2026-10-25 | Arquitectura | No hay migraciones: `create_all()` crea tablas nuevas pero no agrega columnas a las existentes | Análisis de arquitectura | Al cambiar el modelo, borrar `backend/citafacil.db` y volver a ejecutar `seed.py` (sin Alembic) | Aceptado |
@@ -89,6 +90,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 9 | 2026-10-25 | US-04 solo para Panamá (+507, `America/Panama`) | Varios países con buscador | Samuel Saenz |
 | 10 | 2026-10-25 | US-01 con correo + contraseña usando solo la biblioteca estándar (`hashlib.scrypt`, `secrets`) | Teléfono + PIN; librerías externas de autenticación | Samuel Saenz |
 | 11 | 2026-10-25 | Aceptar US-05 "Mis reservas" como segunda historia propia | Otra historia | Samuel Saenz |
+| 12 | 2026-10-25 | Precios en USD con centavos (p. ej. 12.50) | Dólares enteros | Samuel Saenz |
 
 ---
 
@@ -99,6 +101,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 2026-10-25 | `pytest -v` (antes de PR #1) | 0/6 (6 errores) | H-02 |
 | 2026-10-25 | `pytest -v` (después de PR #1) | 6/6 OK | Python 3.12.10 |
 | 2026-10-25 | `pytest -q` (main tras PR #3 y #4) | 6/6 OK | Sin regresiones en backend |
+| 2026-10-25 | `pytest -q` (rama `chore/eliminar-router-juego`) | 6/6 OK | Rutas verificadas: sin `/api/scores` |
 
 ## 7. Pruebas manuales (QA)
 
