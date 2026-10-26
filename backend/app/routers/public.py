@@ -2,15 +2,17 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from .. import crud, schemas
-from ..availability import generate_slots, is_slot_free
+from ..availability import generate_slots, is_slot_free, max_booking_date, month_overview
 from ..config import settings
 from ..database import get_db
 from ..notifications import confirmation_message, send_whatsapp
+from ..utils import local_now
 
 router = APIRouter(prefix="/api", tags=["Público"])
 
@@ -43,6 +45,31 @@ def get_availability(
     if not service or not service.active:
         raise HTTPException(status_code=404, detail="Servicio no encontrado.")
     return generate_slots(db, service, day)
+
+
+@router.get(
+    "/availability/month",
+    response_model=schemas.MonthAvailabilityOut,
+    summary="Disponibilidad del mes (calendario)",
+)
+def get_month_availability(
+    service_id: int = Query(..., description="ID del servicio"),
+    month: Optional[str] = Query(
+        None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="Mes YYYY-MM (por defecto, el actual)"
+    ),
+    db: Session = Depends(get_db),
+):
+    service = crud.get_service(db, service_id)
+    if not service or not service.active:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado.")
+    today = local_now().date()
+    year, mon = (int(x) for x in month.split("-")) if month else (today.year, today.month)
+    return schemas.MonthAvailabilityOut(
+        month=f"{year:04d}-{mon:02d}",
+        today=today.isoformat(),
+        max_date=max_booking_date().isoformat(),
+        days=month_overview(db, service, year, mon),
+    )
 
 
 @router.post(

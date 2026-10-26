@@ -16,8 +16,9 @@ os.environ["OPEN_HOUR"] = "10"
 os.environ["CLOSE_HOUR"] = "20"
 os.environ["SLOT_INTERVAL_MINUTES"] = "30"
 os.environ["CLOSED_WEEKDAYS"] = "6"
+os.environ["BOOKING_HORIZON_MONTHS"] = "3"
 
-from datetime import timedelta  # noqa: E402
+from datetime import date, timedelta  # noqa: E402
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -162,6 +163,95 @@ def test_price_in_cents():
     )
     assert r.status_code == 201, r.text
     assert r.json()["price_cents"] == 650
+
+
+# ---------- Calendario mensual (US-02) ----------
+def _month_days(sid: int, day) -> dict:
+    """Pide el calendario del mes de `day` y devuelve {fecha: {status, free}}."""
+    r = client.get(f"/api/availability/month?service_id={sid}&month={day:%Y-%m}")
+    assert r.status_code == 200, r.text
+    return {d["date"]: d for d in r.json()["days"]}
+
+
+def test_month_statuses():
+    sid = client.get("/api/services").json()[0]["id"]
+    today = local_now().date()
+
+    yesterday = today - timedelta(days=1)
+    assert _month_days(sid, yesterday)[yesterday.isoformat()]["status"] == "past"
+
+    sunday = today + timedelta(days=(6 - today.weekday()) or 7)
+    assert _month_days(sid, sunday)[sunday.isoformat()]["status"] == "closed"
+
+    open_day = _next_open_day_at(11).date()
+    entry = _month_days(sid, open_day)[open_day.isoformat()]
+    assert entry["status"] == "available"
+    assert entry["free"] > 0
+
+
+def test_month_free_matches_daily_slots():
+    sid = client.get("/api/services").json()[0]["id"]
+    day = _next_open_day_at(11).date()
+    daily = client.get(f"/api/availability?service_id={sid}&date={day.isoformat()}").json()
+    assert _month_days(sid, day)[day.isoformat()]["free"] == len(daily)
+
+
+def test_month_full_day():
+    db = SessionLocal()
+    long_svc = models.Service(name="Jornada", duration_min=480, price_cents=5000, active=True)
+    db.add(long_svc)
+    db.commit()
+    sid = long_svc.id
+    db.close()
+
+    start = _next_open_day_at(10)  # 10:00-18:00 bloquea todos los inicios posibles
+    r = client.post(
+        "/api/appointments",
+        json={"customer_name": "Ana", "customer_phone": "61234567", "service_id": sid, "start_at": start.isoformat()},
+    )
+    assert r.status_code == 201, r.text
+    entry = _month_days(sid, start.date())[start.date().isoformat()]
+    assert entry == {"date": start.date().isoformat(), "status": "full", "free": 0}
+
+
+def test_booking_horizon():
+    sid = client.get("/api/services").json()[0]["id"]
+    data = client.get(f"/api/availability/month?service_id={sid}").json()
+    beyond = date.fromisoformat(data["max_date"]) + timedelta(days=1)
+    while beyond.weekday() == 6:
+        beyond += timedelta(days=1)
+
+    assert _month_days(sid, beyond)[beyond.isoformat()]["status"] == "out_of_range"
+    assert client.get(f"/api/availability?service_id={sid}&date={beyond.isoformat()}").json() == []
+    r = client.post(
+        "/api/appointments",
+        json={
+            "customer_name": "Lejos",
+            "customer_phone": "61234567",
+            "service_id": sid,
+            "start_at": f"{beyond.isoformat()}T11:00:00",
+        },
+    )
+    assert r.status_code == 409
+
+
+def test_month_today_uses_business_timezone():
+    # H-12: "hoy" lo calcula el backend en la zona del negocio, no el navegador en UTC.
+    sid = client.get("/api/services").json()[0]["id"]
+    data = client.get(f"/api/availability/month?service_id={sid}").json()
+    today = local_now().date()
+    assert data["today"] == today.isoformat()
+    assert data["month"] == f"{today:%Y-%m}"  # sin parámetro: mes actual
+
+
+@pytest.mark.parametrize("month", ["2026-13", "2026-1", "noviembre"])
+def test_month_invalid(month):
+    sid = client.get("/api/services").json()[0]["id"]
+    assert client.get(f"/api/availability/month?service_id={sid}&month={month}").status_code == 422
+
+
+def test_month_unknown_service():
+    assert client.get("/api/availability/month?service_id=999").status_code == 404
 
 
 # ---------- Administración ----------
