@@ -16,6 +16,10 @@ STATUS_CANCELLED = "cancelled"
 STATUS_DONE = "done"
 VALID_STATUSES = {STATUS_PENDING, STATUS_CONFIRMED, STATUS_CANCELLED, STATUS_DONE}
 
+# Estado del pago de una cita (US-01)
+PAYMENT_UNPAID = "unpaid"
+PAYMENT_PAID = "paid"
+
 
 class Service(Base):
     """Un servicio que ofrece el negocio (ej: Corte de pelo, 30 min, $8.000)."""
@@ -46,6 +50,11 @@ class Appointment(Base):
     status = Column(String(20), nullable=False, default=STATUS_PENDING)
     notes = Column(String(300), nullable=False, default="")
     reminder_sent = Column(Boolean, nullable=False, default=False)
+    # Pago (US-01). price_paid_cents fija el precio cobrado aunque el servicio cambie después (H-15).
+    payment_status = Column(String(20), nullable=False, default=PAYMENT_UNPAID)
+    price_paid_cents = Column(Integer, nullable=True)
+    payment_brand = Column(String(20), nullable=True)
+    payment_last4 = Column(String(4), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     service = relationship("Service", back_populates="appointments")
@@ -68,6 +77,26 @@ class Customer(Base):
 
     appointments = relationship("Appointment", back_populates="customer")
     sessions = relationship("CustomerSession", back_populates="customer", cascade="all, delete-orphan")
+    payment_method = relationship(
+        "PaymentMethod", back_populates="customer", uselist=False, cascade="all, delete-orphan"
+    )
+
+
+class PaymentMethod(Base):
+    """Tarjeta guardada (una por cliente). Nunca se guardan el número completo ni el CVV."""
+
+    __tablename__ = "payment_methods"
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, unique=True, index=True)
+    brand = Column(String(20), nullable=False)
+    last4 = Column(String(4), nullable=False)
+    exp_month = Column(Integer, nullable=False)
+    exp_year = Column(Integer, nullable=False)
+    token = Column(String(64), nullable=False)  # identificador simulado de la pasarela
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+
+    customer = relationship("Customer", back_populates="payment_method")
 
 
 class CustomerSession(Base):

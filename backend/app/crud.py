@@ -1,6 +1,7 @@
 """Operaciones de base de datos (Create/Read/Update/Delete)."""
 from __future__ import annotations
 
+import secrets
 from datetime import date, datetime, time, timedelta
 from typing import Optional
 
@@ -60,6 +61,26 @@ def create_customer(db: Session, data: schemas.CustomerRegister, password_hash: 
     return obj
 
 
+def save_card(db: Session, customer: models.Customer, card: schemas.CardIn) -> models.PaymentMethod:
+    """Guarda la tarjeta del cliente (reemplaza la anterior: una por cliente).
+    Solo se conservan marca, últimos 4 dígitos y vencimiento."""
+    pm = customer.payment_method or models.PaymentMethod(customer_id=customer.id)
+    pm.brand = card.brand
+    pm.last4 = card.number[-4:]
+    pm.exp_month = card.exp_month
+    pm.exp_year = card.exp_year
+    pm.token = "tok_" + secrets.token_urlsafe(16)
+    db.add(pm)
+    db.commit()
+    db.refresh(pm)
+    return pm
+
+
+def delete_card(db: Session, card: models.PaymentMethod) -> None:
+    db.delete(card)
+    db.commit()
+
+
 # ---------- Citas ----------
 def create_appointment(
     db: Session,
@@ -67,9 +88,15 @@ def create_appointment(
     service: models.Service,
     end_at: datetime,
     customer: Optional[models.Customer] = None,
+    receipt: Optional[dict] = None,
 ) -> models.Appointment:
+    """Crea la cita. `receipt` ({brand, last4}) es el comprobante del pago simulado."""
     obj = models.Appointment(
         customer_id=customer.id if customer else None,
+        payment_status=models.PAYMENT_PAID if receipt else models.PAYMENT_UNPAID,
+        price_paid_cents=service.price_cents if receipt else None,
+        payment_brand=receipt["brand"] if receipt else None,
+        payment_last4=receipt["last4"] if receipt else None,
         customer_name=data.customer_name.strip(),
         customer_phone=data.customer_phone,
         service_id=service.id,

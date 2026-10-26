@@ -4,9 +4,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from .models import VALID_STATUSES
+from .payments import CardError, validate_card
 from .utils import PhoneError, normalize_pa_phone, to_local_naive
 
 
@@ -34,6 +35,49 @@ class ServiceOut(ServiceBase):
     id: int
 
 
+# ---------- Pago (US-01) ----------
+class CardIn(BaseModel):
+    number: str = Field(..., examples=["4242 4242 4242 4242"])
+    exp_month: int = Field(..., ge=1, le=12)
+    exp_year: int = Field(..., ge=0, le=2100, description="AA o AAAA")
+    cvv: str = Field(..., examples=["123"])
+    brand: Optional[str] = Field(None, exclude=True)  # la calcula el validador
+
+    @model_validator(mode="after")
+    def _validate_card(self) -> "CardIn":
+        try:
+            self.number, self.brand, self.exp_year = validate_card(
+                self.number, self.exp_month, self.exp_year, self.cvv
+            )
+        except CardError as e:
+            raise ValueError(str(e))
+        return self
+
+
+class PaymentIn(BaseModel):
+    """Una tarjeta nueva (`card`) o la tarjeta guardada (`use_saved_card`)."""
+
+    use_saved_card: bool = False
+    card: Optional[CardIn] = None
+    save_card: bool = Field(False, description="Guardar `card` en la cuenta (requiere sesión)")
+
+    @model_validator(mode="after")
+    def _one_source(self) -> "PaymentIn":
+        if self.use_saved_card == (self.card is not None):
+            raise ValueError("Indica los datos de una tarjeta o usa tu tarjeta guardada.")
+        if self.use_saved_card:
+            self.save_card = False
+        return self
+
+
+class CardOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    brand: str
+    last4: str
+    exp_month: int
+    exp_year: int
+
+
 # ---------- Citas ----------
 class AppointmentCreate(BaseModel):
     customer_name: str = Field(..., min_length=2, max_length=120)
@@ -41,6 +85,7 @@ class AppointmentCreate(BaseModel):
     service_id: int
     start_at: datetime = Field(..., description="Inicio de la cita (ISO 8601)")
     notes: str = Field("", max_length=300)
+    payment: PaymentIn
 
     @field_validator("customer_phone")
     @classmethod
@@ -68,6 +113,10 @@ class AppointmentOut(BaseModel):
     status: str
     notes: str
     reminder_sent: bool
+    payment_status: str
+    price_paid_cents: Optional[int] = None
+    payment_brand: Optional[str] = None
+    payment_last4: Optional[str] = None
     created_at: datetime
     service: Optional[ServiceOut] = None
 

@@ -82,3 +82,30 @@ def logout(session: models.CustomerSession = Depends(require_session), db: Sessi
 @router.get("/me", response_model=schemas.CustomerOut, summary="Mis datos")
 def me(session: models.CustomerSession = Depends(require_session)):
     return session.customer
+
+
+# ---------- Tarjeta guardada (una por cliente) ----------
+@router.get("/me/card", response_model=schemas.CardOut, summary="Mi tarjeta guardada")
+def my_card(session: models.CustomerSession = Depends(require_session)):
+    card = session.customer.payment_method
+    if not card:
+        raise HTTPException(status_code=404, detail="No tienes una tarjeta guardada.")
+    return card
+
+
+@router.put("/me/card", response_model=schemas.CardOut, summary="Guardar o reemplazar mi tarjeta")
+def put_card(
+    payload: schemas.CardIn,
+    session: models.CustomerSession = Depends(require_session),
+    db: Session = Depends(get_db),
+):
+    return crud.save_card(db, session.customer, payload)
+
+
+@router.delete("/me/card", response_model=schemas.MessageOut, summary="Eliminar mi tarjeta")
+def delete_card(session: models.CustomerSession = Depends(require_session), db: Session = Depends(get_db)):
+    card = session.customer.payment_method
+    if not card:
+        raise HTTPException(status_code=404, detail="No tienes una tarjeta guardada.")
+    crud.delete_card(db, card)
+    return {"detail": "Tarjeta eliminada."}

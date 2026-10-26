@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from .. import crud, models, schemas
+from .. import crud, models, payments, schemas
 from ..auth import optional_customer
 from ..availability import generate_slots, is_slot_free, max_booking_date, month_overview
 from ..config import settings
@@ -84,7 +84,13 @@ def create_appointment(
     db: Session = Depends(get_db),
     customer: Optional[models.Customer] = Depends(optional_customer),
 ):
-    """Con sesión iniciada la cita queda asociada al cliente; sin sesión, es de invitado."""
+    """Con sesión iniciada la cita queda asociada al cliente; sin sesión, es de invitado.
+
+    Orden: horario libre -> cobro simulado -> cita. Si el pago falla no se crea la cita.
+    """
+    pay = payload.payment
+    if (pay.use_saved_card or pay.save_card) and not customer:
+        raise HTTPException(status_code=401, detail="Inicia sesión para usar o guardar una tarjeta.")
     service = crud.get_service(db, payload.service_id)
     if not service or not service.active:
         raise HTTPException(status_code=404, detail="Servicio no encontrado.")
@@ -93,8 +99,21 @@ def create_appointment(
             status_code=409,
             detail="Ese horario ya no está disponible. Por favor elige otro.",
         )
+
+    if pay.use_saved_card and not customer.payment_method:
+        raise HTTPException(status_code=400, detail="No tienes una tarjeta guardada.")
+    try:
+        if pay.use_saved_card:
+            receipt = payments.charge(service.price_cents, saved=customer.payment_method)
+        else:
+            receipt = payments.charge(service.price_cents, number=pay.card.number)
+    except payments.PaymentDeclined as e:
+        raise HTTPException(status_code=402, detail=str(e))
+    if pay.save_card:
+        crud.save_card(db, customer, pay.card)
+
     end_at = payload.start_at + timedelta(minutes=service.duration_min)
-    appt = crud.create_appointment(db, payload, service, end_at, customer)
+    appt = crud.create_appointment(db, payload, service, end_at, customer, receipt)
 
     # Confirmación por WhatsApp (real si Twilio está configurado; simulada si no)
     body = confirmation_message(
