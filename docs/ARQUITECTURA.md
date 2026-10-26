@@ -59,7 +59,8 @@ Se divide en dos PRs: **A** (cuentas de cliente) y **B** (pago simulado y tarjet
 
 - **Backend:** `GET /api/admin/forecast`, que agrega el histórico por día de la semana, franja horaria y servicio, y proyecta las próximas semanas con media móvil más estacionalidad semanal, sin librerías nuevas.
 - **Datos:** script `seed_history.py` con unos 6 meses de citas.
-- **Frontend:** Chart.js por CDN en `admin.html`.
+- **Frontend:** Chart.js 4.4.1 por CDN en `admin.html`, en la pestaña "Ver Estadísticas" (la pestaña "Reservas" es la vista por defecto).
+- **Implementado** (`app/forecast.py`): promedio de las últimas 8 semanas completas + tendencia lineal; horizonte de 1 a 3 meses; ocupación medida en turnos bloqueados (una cita de 20 min ocupa un turno de 30); sugerencias con umbrales de 85 % (alta) y 40 % (baja).
 
 ### US-04 · Teléfonos y localización de Panamá (propia)
 > Como cliente en Panamá, quiero registrar mi celular con formato +507, para recibir la confirmación de mi reserva en mi WhatsApp local.
@@ -90,6 +91,7 @@ Se divide en dos PRs: **A** (cuentas de cliente) y **B** (pago simulado y tarjet
 cd backend
 del citafacil.db                       # PowerShell: Remove-Item citafacil.db
 $env:PYTHONUTF8=1; python seed.py      # PYTHONUTF8 evita el error de H-04
+python seed_history.py                 # opcional: ~6 meses de histórico para "Ver Estadísticas" (US-03)
 ```
 Al iniciar, el backend vuelve a crear las tablas con `create_all()`.
 

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from . import models
 from .config import settings
-from .utils import local_now
+from .utils import add_months, local_now
 
 # Estados de un día en el calendario mensual
 DAY_AVAILABLE = "available"
@@ -21,10 +21,7 @@ DAY_OUT_OF_RANGE = "out_of_range"
 def max_booking_date() -> date:
     """Último día reservable: hoy + `booking_horizon_months` meses (mismo día del mes,
     o el último día si ese mes es más corto)."""
-    today = local_now().date()
-    y, m = divmod(today.month - 1 + settings.booking_horizon_months, 12)
-    year, month = today.year + y, m + 1
-    return date(year, month, min(today.day, calendar.monthrange(year, month)[1]))
+    return add_months(local_now().date(), settings.booking_horizon_months)
 
 
 def _overlaps(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:

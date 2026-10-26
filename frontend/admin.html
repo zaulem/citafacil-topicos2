@@ -81,6 +81,20 @@
   .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:11px;padding:12px 18px;box-shadow:var(--shadow);font-size:.9rem;display:none;z-index:50}
   .toast.err{border-color:rgba(248,113,113,.5)} .toast.ok{border-color:rgba(34,197,94,.5)}
   .hide{display:none!important}
+
+  /* Pestañas y vista "Ver Estadísticas" (US-03) */
+  .tabs-bar{display:flex;gap:6px;margin-bottom:22px;border-bottom:1px solid var(--border)}
+  .tab{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;color:var(--muted);font:inherit;font-weight:700;padding:10px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:color .2s}
+  .tab:hover{color:var(--text)} .tab.active{color:var(--text);border-bottom-color:var(--accent)}
+  .fc-note{color:var(--muted);font-size:.85rem;align-self:center}
+  .charts{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .charts .card{margin:0} .charts .wide{grid-column:1/-1}
+  @media(max-width:860px){.charts{grid-template-columns:1fr}}
+  .chart-box{position:relative;height:280px}
+  .sugg{list-style:none;display:grid;gap:10px}
+  .sugg li{padding:11px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-soft);font-size:.9rem}
+  .sugg li.high{border-color:rgba(245,158,11,.45);background:rgba(245,158,11,.08)}
+  .sugg li.low{border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.08)}
   @media(max-width:680px){ .add-svc{grid-template-columns:1fr 1fr}; table{font-size:.82rem}; th:nth-child(3),td:nth-child(3){display:none} }
 </style>
 </head>
@@ -110,6 +124,13 @@
 
     <!-- DASHBOARD -->
     <div id="dashView" class="hide">
+      <div class="tabs-bar" role="tablist">
+        <button type="button" class="tab active" id="tabRes" role="tab"><i class="fa-solid fa-list-check"></i> Reservas</button>
+        <button type="button" class="tab" id="tabStats" role="tab"><i class="fa-solid fa-chart-line"></i> Ver Estadísticas</button>
+      </div>
+
+      <!-- VISTA: RESERVAS (por defecto) -->
+      <div id="viewRes">
       <div class="stats" id="stats"></div>
 
       <div class="card">
@@ -147,12 +168,39 @@
           <button class="btn sm" onclick="addService()"><i class="fa-solid fa-plus"></i> Agregar</button>
         </div>
       </div>
+      </div>
+
+      <!-- VISTA: VER ESTADÍSTICAS (US-03) -->
+      <div id="viewStats" class="hide">
+        <div class="toolbar">
+          <div class="field"><label for="fcMonths">Previsión a</label>
+            <select id="fcMonths">
+              <option value="1" selected>1 mes</option>
+              <option value="2">2 meses</option>
+              <option value="3">3 meses</option>
+            </select>
+          </div>
+          <span class="fc-note" id="fcNote"></span>
+        </div>
+        <div class="stats" id="fcKpis"></div>
+        <div class="card">
+          <h2><i class="fa-solid fa-lightbulb"></i> Sugerencias</h2>
+          <ul class="sugg" id="fcSugg"></ul>
+        </div>
+        <div class="charts">
+          <div class="card wide"><h2><i class="fa-solid fa-chart-line"></i> Demanda semanal: histórico y previsión</h2><div class="chart-box"><canvas id="chWeekly"></canvas></div></div>
+          <div class="card"><h2><i class="fa-solid fa-calendar-week"></i> Ocupación por día de la semana</h2><div class="chart-box"><canvas id="chWeekday"></canvas></div></div>
+          <div class="card"><h2><i class="fa-solid fa-clock"></i> Ocupación por hora (últimas 8 semanas)</h2><div class="chart-box"><canvas id="chHour"></canvas></div></div>
+          <div class="card wide"><h2><i class="fa-solid fa-sack-dollar"></i> Ingresos por servicio (últimos 6 meses)</h2><div class="chart-box"><canvas id="chService"></canvas></div></div>
+        </div>
+      </div>
     </div>
 
   </div>
 </main>
 <div class="toast" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
   /* ====== CONFIG ====== */
   // En local (archivo abierto o localhost) usa el backend local; si no, producción.
@@ -316,6 +364,128 @@
   }
 
   function clearFilters(){ $("fStatus").value=""; $("fDate").value=""; loadAppointments(); }
+
+  /* ====== PESTAÑAS: RESERVAS / VER ESTADÍSTICAS (US-03) ====== */
+  // La previsión se pide solo al abrir "Ver Estadísticas": la entrada al panel sigue rápida.
+  function showView(v){
+    $("viewRes").classList.toggle("hide", v !== "res");
+    $("viewStats").classList.toggle("hide", v !== "stats");
+    $("tabRes").classList.toggle("active", v === "res");
+    $("tabStats").classList.toggle("active", v === "stats");
+    if(v === "stats") loadForecast();
+  }
+  $("tabRes").onclick = ()=>showView("res");
+  $("tabStats").onclick = ()=>showView("stats");
+  $("fcMonths").onchange = loadForecast;
+
+  const COLORS = {accent:"#3b82f6", accent2:"#22d3ee", ok:"#22c55e", warn:"#f59e0b", muted:"#9aa7b4", grid:"#232a34"};
+  const HIGH_PCT = 85, LOW_PCT = 40, LOW_HOUR_PCT = 25;  // mismos umbrales que el backend
+  const fmtDM = iso => iso.slice(8,10) + "/" + iso.slice(5,7);
+  let fcCharts = [];
+
+  if(typeof Chart !== "undefined"){
+    Chart.defaults.color = COLORS.muted;
+    Chart.defaults.borderColor = COLORS.grid;
+    Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
+  }
+
+  function chartOptions(yTitle, extra){
+    return Object.assign({
+      responsive: true, maintainAspectRatio: false,
+      interaction: {mode: "index", intersect: false},
+      plugins: {legend: {labels: {boxWidth: 12}}},
+      scales: {y: {beginAtZero: true, title: {display: true, text: yTitle}}},
+    }, extra || {});
+  }
+  const pctScale = {y: {beginAtZero: true, max: 100, title: {display: true, text: "Ocupación (%)"}}};
+  const levelColor = (pct, low) => pct >= HIGH_PCT ? COLORS.warn : (pct <= low ? COLORS.muted : COLORS.accent2);
+
+  async function loadForecast(){
+    if(typeof Chart === "undefined"){
+      $("fcSugg").innerHTML = '<li class="high">No se pudo cargar la librería de gráficos (Chart.js). Revisa la conexión a internet.</li>';
+      return;
+    }
+    $("fcNote").textContent = "Calculando…";
+    try{
+      renderForecast(await api(`/api/admin/forecast?months=${$("fcMonths").value}`));
+    }catch(e){
+      if(e.status===401){ logout(); return; }
+      $("fcNote").textContent = "Error: " + e.message;
+    }
+  }
+
+  function renderForecast(f){
+    $("fcNote").textContent = `Del ${fmtDM(f.today)} al ${fmtDM(f.horizon_end)} · basado en las últimas 8 semanas`;
+    const k = f.kpis, t = k.trend_pct_per_week;
+    $("fcKpis").innerHTML = `
+      <div class="stat acc"><div class="v">${Math.round(k.expected_appointments)}</div><div class="k">Citas previstas</div></div>
+      <div class="stat ok"><div class="v">${k.booked_appointments}</div><div class="k">Ya reservadas</div></div>
+      <div class="stat"><div class="v">${Math.round(k.expected_occupancy_pct)} %</div><div class="k">Ocupación prevista</div></div>
+      <div class="stat"><div class="v">${money(k.expected_revenue_cents)}</div><div class="k">Ingresos previstos</div></div>
+      <div class="stat ${t >= 0 ? "ok" : "warn"}"><div class="v">${t > 0 ? "+" : ""}${t} %</div><div class="k">Tendencia semanal</div></div>`;
+    $("fcSugg").innerHTML = f.suggestions.map(s => `<li class="${esc(s.level)}">${esc(s.text)}</li>`).join("");
+
+    fcCharts.forEach(c => c.destroy());
+    fcCharts = [];
+
+    // 1) Demanda semanal: histórico (línea), previsión (punteada) y ya reservado (barras).
+    const h = f.history, w = f.forecast_weekly;
+    const pad = n => Array(n).fill(null);
+    fcCharts.push(new Chart($("chWeekly"), {
+      data: {
+        labels: [...h.map(x => fmtDM(x.week_start)), ...w.map(x => fmtDM(x.week_start))],
+        datasets: [
+          {type: "line", label: "Histórico", data: [...h.map(x => x.appointments), ...pad(w.length)],
+           borderColor: COLORS.accent, backgroundColor: COLORS.accent, tension: .3, pointRadius: 2},
+          // la previsión arranca en el último punto histórico para que las líneas se unan
+          {type: "line", label: "Previsión", data: [...pad(h.length - 1), h.length ? h[h.length-1].appointments : null, ...w.map(x => x.expected)],
+           borderColor: COLORS.accent2, backgroundColor: COLORS.accent2, borderDash: [6, 4], tension: .3, pointRadius: 2},
+          {type: "bar", label: "Ya reservado", data: [...pad(h.length), ...w.map(x => x.booked)],
+           backgroundColor: "rgba(34,197,94,.45)", borderColor: COLORS.ok, borderWidth: 1},
+        ],
+      },
+      options: chartOptions("Citas por semana", {plugins: {tooltip: {callbacks: {title: i => "Semana del " + i[0].label}}}}),
+    }));
+
+    // 2) Ocupación por día de la semana: histórico vs. prevista (ámbar = alta, gris = baja).
+    const wd = f.by_weekday;
+    fcCharts.push(new Chart($("chWeekday"), {
+      type: "bar",
+      data: {
+        labels: wd.map(x => x.weekday),
+        datasets: [
+          {label: "Histórica", data: wd.map(x => x.historical_occupancy_pct), backgroundColor: "rgba(59,130,246,.35)"},
+          {label: "Prevista", data: wd.map(x => x.expected_occupancy_pct), backgroundColor: wd.map(x => levelColor(x.expected_occupancy_pct, LOW_PCT))},
+        ],
+      },
+      options: chartOptions("", {scales: pctScale}),
+    }));
+
+    // 3) Ocupación por hora del día.
+    fcCharts.push(new Chart($("chHour"), {
+      type: "bar",
+      data: {
+        labels: f.by_hour.map(x => x.hour),
+        datasets: [{label: "Ocupación", data: f.by_hour.map(x => x.occupancy_pct), backgroundColor: f.by_hour.map(x => levelColor(x.occupancy_pct, LOW_HOUR_PCT))}],
+      },
+      options: chartOptions("", {scales: pctScale, plugins: {legend: {display: false}}}),
+    }));
+
+    // 4) Ingresos por servicio (precio cobrado).
+    fcCharts.push(new Chart($("chService"), {
+      type: "bar",
+      data: {
+        labels: f.by_service.map(x => x.service),
+        datasets: [{label: "Ingresos", data: f.by_service.map(x => x.revenue_cents / 100), backgroundColor: COLORS.accent2}],
+      },
+      options: chartOptions("", {
+        indexAxis: "y",
+        plugins: {legend: {display: false}, tooltip: {callbacks: {
+          label: i => `${money(f.by_service[i.dataIndex].revenue_cents)} · ${f.by_service[i.dataIndex].appointments} citas`}}},
+        scales: {x: {beginAtZero: true, title: {display: true, text: "USD"}}},
+      }),
+    }));
+  }
 
   /* init */
   if(TOKEN){ showDash(); }
