@@ -64,6 +64,9 @@
   .b-confirmed{background:rgba(59,130,246,.16);color:var(--accent-2)}
   .b-cancelled{background:rgba(248,113,113,.14);color:var(--err)}
   .b-done{background:rgba(34,197,94,.15);color:var(--ok)}
+  .b-paid{background:rgba(34,197,94,.15);color:var(--ok)}
+  .b-unpaid{background:rgba(154,167,180,.14);color:var(--muted)}
+  .pay-detail{display:block;color:var(--muted);font-size:.75rem;margin-top:3px}
   .actions{display:flex;gap:6px;flex-wrap:wrap}
   .ico{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--bg-soft);color:var(--muted);cursor:pointer;display:grid;place-items:center;transition:all .16s;font-size:.85rem}
   .ico:hover{color:#fff} .ico.ok:hover{border-color:var(--ok);color:var(--ok)} .ico.warn:hover{border-color:var(--accent-2);color:var(--accent-2)}
@@ -128,8 +131,8 @@
         </div>
         <div style="overflow-x:auto">
           <table>
-            <thead><tr><th>Fecha y hora</th><th>Cliente</th><th>Teléfono</th><th>Servicio</th><th>Estado</th><th>Acciones</th></tr></thead>
-            <tbody id="apptBody"><tr><td colspan="6" class="empty">Cargando…</td></tr></tbody>
+            <thead><tr><th>Fecha y hora</th><th>Cliente</th><th>Teléfono</th><th>Servicio</th><th>Pago</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="apptBody"><tr><td colspan="7" class="empty">Cargando…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -223,20 +226,27 @@
   }
 
   const STLABEL = {pending:"Pendiente",confirmed:"Confirmada",cancelled:"Cancelada",done:"Realizada"};
+  // Pago simulado (US-01): monto cobrado y tarjeta usada (solo marca y últimos 4).
+  function payCell(a){
+    if(a.payment_status !== "paid") return '<span class="badge b-unpaid">Sin pago</span>';
+    return `<span class="badge b-paid">Pagado ${money(a.price_paid_cents)}</span>`
+      + `<span class="pay-detail mono">${a.payment_brand} •••• ${a.payment_last4}</span>`;
+  }
   function fmtDT(iso){ const d=new Date(iso); return d.toLocaleDateString("es-PA",{weekday:"short",day:"2-digit",month:"2-digit"})+" · "+d.toLocaleTimeString("es-PA",{hour:"2-digit",minute:"2-digit"}); }
 
   async function loadAppointments(){
-    const body=$("apptBody"); body.innerHTML='<tr><td colspan="6" class="empty">Cargando…</td></tr>';
+    const body=$("apptBody"); body.innerHTML='<tr><td colspan="7" class="empty">Cargando…</td></tr>';
     const params=[]; if($("fStatus").value) params.push("status="+$("fStatus").value); if($("fDate").value) params.push("date="+$("fDate").value);
     try{
       const list = await api("/api/admin/appointments" + (params.length?("?"+params.join("&")):""));
-      if(!list.length){ body.innerHTML='<tr><td colspan="6" class="empty">No hay reservas con esos filtros.</td></tr>'; return; }
+      if(!list.length){ body.innerHTML='<tr><td colspan="7" class="empty">No hay reservas con esos filtros.</td></tr>'; return; }
       body.innerHTML="";
       list.forEach(a=>{
         const tr=document.createElement("tr");
         const svc = a.service ? a.service.name : ("#"+a.service_id);
         tr.innerHTML = `<td class="mono">${fmtDT(a.start_at)}</td><td>${a.customer_name}</td>
           <td class="mono">${a.customer_phone}</td><td>${svc}</td>
+          <td>${payCell(a)}</td>
           <td><span class="badge b-${a.status}">${STLABEL[a.status]||a.status}</span></td>
           <td><div class="actions">
             <button class="ico ok" title="Confirmar" onclick="setStatus(${a.id},'confirmed')"><i class="fa-solid fa-check"></i></button>
@@ -246,7 +256,7 @@
           </div></td>`;
         body.appendChild(tr);
       });
-    }catch(e){ if(e.status===401){logout();return;} body.innerHTML='<tr><td colspan="6" class="empty">Error: '+e.message+'</td></tr>'; }
+    }catch(e){ if(e.status===401){logout();return;} body.innerHTML='<tr><td colspan="7" class="empty">Error: '+e.message+'</td></tr>'; }
   }
 
   async function setStatus(id, status){
