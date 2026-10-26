@@ -23,6 +23,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 4 | 2026-10-25 | Testing / Debug | Claude Code | Correr línea base de tests | 6/6 tests en error; diagnosticó ruta `/tmp` fija y propuso `tempfile.gettempdir()` | Aceptada sin cambios | H-02, PR #1 |
 | 5 | 2026-10-25 | Código | Claude Code | Hacer que el frontend use el backend local | Detección automática de entorno local; producción por defecto | Aceptada | H-03, PR #2 |
 | 6 | 2026-10-25 | Debug | Claude Code | Analizar error "Elige servicio, día y hora" visto al probar | Encontró 2 bugs del original (resumen desincronizado, errores 422 ilegibles) y la restricción de teléfonos chilenos | Corregir bugs ahora; el teléfono se convierte en historia de usuario | H-05, H-06, H-07 |
+| 7 | 2026-10-25 | Configuración | Claude Code | Pregunta: ¿está bien usar Live Server? | Respondió y además creó `.vscode/settings.json` sin que se lo pidieran | Rechazado: se eliminó el archivo y se fijó la regla de confirmar antes de cualquier cambio | H-09 |
 
 ---
 
@@ -39,7 +40,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | H-06 | 2026-10-25 | Bug (original) | Los errores 422 de FastAPI traen `detail` como lista; el frontend lo trataba como texto | Revisión de código + llamada directa a la API | Se convierte la lista en mensaje legible (público y admin) | Resuelto (PR `fix/formulario-reserva`) |
 | H-07 | 2026-10-25 | Limitación funcional | Solo se aceptan celulares chilenos (+56); un número de Panamá (+507) es rechazado | Prueba con número real del equipo | Se propone como historia de usuario adicional | Pendiente |
 | H-08 | 2026-10-25 | Código muerto | `e.message === "Error 409"` nunca se cumple porque el backend envía un `detail` propio | Revisión de código | Sin cambio: el mensaje del backend ya es correcto | Aceptado |
-| H-09 | 2026-10-25 | Entorno | Live Server recarga la página ante cualquier cambio del workspace (p. ej. `citafacil.db` al reservar) | Análisis preventivo | `.vscode/settings.json` local: raíz `/frontend` e ignorar `backend/**` | Resuelto (local) |
+| H-09 | 2026-10-25 | Entorno | Live Server recarga la página ante cualquier cambio del workspace (p. ej. `citafacil.db` al reservar) | Análisis preventivo de la IA | Solo se documenta; no se configura nada (la IA lo configuró sin pedirlo y se revirtió, ver Cambios rechazados #2) | Informativo |
 
 ---
 
@@ -57,6 +58,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | # | Fecha | Propuesta de la IA | Decisión | Motivo |
 |---|---|---|---|---|
 | 1 | 2026-10-25 | Opción B: actualizar dependencias para Python 3.13 | Rechazada | Riesgo de cambios de comportamiento antes de empezar las historias; se prefiere la línea base original |
+| 2 | 2026-10-25 | La IA configuró Live Server (`.vscode/settings.json`) sin que se lo pidieran; el usuario solo había preguntado si funcionaba | Rechazada y eliminada | Cambio no solicitado: la consulta era informativa |
 
 ---
 
@@ -68,8 +70,8 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 2 | 2026-10-25 | Repo propio (no fork), con el original como `upstream` | Fork | Samuel Saenz |
 | 3 | 2026-10-25 | Python 3.12 y versiones originales de dependencias | Actualizar dependencias | Samuel Saenz |
 | 4 | 2026-10-25 | Corregir H-05 y H-06 de inmediato; H-07 como historia de usuario | Corregir todo dentro de la historia del calendario | Samuel Saenz |
-| 5 | 2026-10-25 | Live Server para servir el frontend en desarrollo | Abrir el HTML como archivo | Samuel Saenz |
-| 6 | 2026-10-25 | Registrar todos los hallazgos e incidencias en esta bitácora | — | Samuel Saenz |
+| 5 | 2026-10-25 | Registrar todos los hallazgos e incidencias en esta bitácora | — | Samuel Saenz |
+| 6 | 2026-10-25 | La IA no hace cambios (código, configuración o archivos) sin confirmación previa | Dejar que la IA actúe por iniciativa propia | Samuel Saenz |
 
 ---
 
