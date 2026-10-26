@@ -8,6 +8,14 @@ import tempfile
 _TEST_DB = os.path.join(tempfile.gettempdir(), "citafacil_test.db")
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB}"
 os.environ["ADMIN_TOKEN"] = "test-token"
+# Configuración del negocio fija: los tests no deben depender del .env local
+# de cada integrante (las variables de entorno tienen prioridad sobre el .env).
+os.environ["BUSINESS_TIMEZONE"] = "America/Panama"
+os.environ["CURRENCY"] = "USD"
+os.environ["OPEN_HOUR"] = "10"
+os.environ["CLOSE_HOUR"] = "20"
+os.environ["SLOT_INTERVAL_MINUTES"] = "30"
+os.environ["CLOSED_WEEKDAYS"] = "6"
 
 from datetime import timedelta  # noqa: E402
 
