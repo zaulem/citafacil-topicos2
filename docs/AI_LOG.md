@@ -36,6 +36,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 17 | 2026-10-26 | Código / Testing | Claude Code | Implementar US-03 (#12): histórico de ejemplo, previsión de demanda con sugerencias y vista "Ver Estadísticas" con Chart.js | `seed_history.py` (~6 meses, reproducible, sin solapes), endpoint `/api/admin/forecast` (promedio de 8 semanas + tendencia lineal, horizonte 1–3 meses), pestañas Reservas / Ver Estadísticas, 4 gráficos, KPIs y sugerencias; 12 tests nuevos (78/78). La IA corrigió dos fallos de su propio diseño antes del commit (ver respuestas incorrectas #6 y #7) | Aceptado; QA aprobado (QA-33 a QA-39) con observaciones de revisión → Issue #20; PR #19 | — |
 | 18 | 2026-10-26 | Revisión / Código | Claude Code | Iteración #20 (sub-issue de #12) a partir de la revisión funcional: tabla con desplazamiento, histórico liviano, rango de fechas, filtro cruzado por servicio y KPIs nuevos | Endpoint con `start`, `end` y `service_id`; días pasados = datos reales, desde hoy = previsión; servicios arriba y clicables; ticket promedio y tasa de cancelación; histórico de 299 citas en 3 meses; 21 tests de previsión (86/86). Con los datos livianos se vio que las sugerencias con umbral absoluto no servían y se pasó a una clasificación relativa (respuesta incorrecta #8) | Aceptado; QA aprobado (QA-40 a QA-45), PR #21 | H-24, H-25, H-26 |
 | 19 | 2026-10-26 | Debug / Código | Claude Code | Explicar por qué el KPI "Citas" (20) no coincidía con el gráfico de servicios (21) con el filtro Corte niño, y ajustar la vista según el revisor | Consultó la BD: el gráfico contaba reales + reservadas (20 + 1) y el KPI reales + previstas, con la previsión en 0 porque la tendencia (−30 %/semana) se proyectaba a cero. Corrigió el modelo (tendencia amortiguada, previsión ≥ reservado), separó citas e ingresos por servicio, movió las sugerencias al final con un botón que desplaza hasta ellas; 2 tests nuevos (88/88) | Aceptado; pendiente QA manual | H-27 |
+| 20 | 2026-10-26 | Validación / Código | Claude Code | Validar uno por uno los datos de "Ver Estadísticas" contra la BD y la pestaña Reservas; luego separar datos reales y previsión con un interruptor | 14 cruces con la BD: sin conteos dobles; el desajuste (471 vs 301) venía de mezclar estimaciones con datos reales y de categorías solapadas ("previstas" incluía "reservadas"). Respuesta reestructurada en `real` y `forecast`; interruptor "Mostrar previsión" apagado por defecto; test de conciliación con Reservas (90/90) | Aceptado; pendiente QA manual | H-28 |
 
 ---
 
@@ -71,6 +72,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | H-25 | 2026-10-26 | Inconsistencia (IA) | El filtro de "Ver Estadísticas" solo afectaba a la previsión: el gráfico semanal mostraba siempre 6 meses y el de ingresos otro periodo | Revisión funcional (Samuel Saenz) | Un único rango de fechas (desde/hasta) filtra todos los gráficos y KPIs | Resuelto (#20, PR #21) |
 | H-26 | 2026-10-26 | Datos de demo | El histórico de ejemplo (~1.500 citas en 6 meses) era excesivo para una demo | Revisión funcional (Samuel Saenz) | `seed_history.py`: ~300 citas en 3 meses, con variación diaria (días flojos y buenos) | Resuelto (#20, PR #21) |
 | H-27 | 2026-10-26 | Error de cálculo (IA) | Con el filtro Corte niño el KPI "Citas" daba 20 y el gráfico 21: la previsión era 0 (tendencia de −30 %/semana extrapolada sin límite) e ignoraba una cita ya reservada | QA del revisor (Samuel Saenz) con rango junio–enero | Tendencia amortiguada (±10 %/semana, piso del 50 % del promedio) y previsión diaria nunca menor que lo reservado; etiquetas "reales + reservadas" / "reales + previstas" | Resuelto (rama `fix/prevision-ajustes`) |
+| H-28 | 2026-10-26 | Presentación (IA) | "Ver Estadísticas" mostraba 471 citas y la pestaña Reservas 301: los KPIs sumaban citas reales con estimaciones y "previstas" ya incluía las "reservadas" sin decirlo | Revisión del QA (Samuel Saenz) comparando ambas pestañas | Datos reales por defecto (total 301 = 282 registradas + 19 canceladas, igual que Reservas); la previsión solo con el interruptor, en una fila de KPIs aparte y con estilo punteado "(estimado)"; test `test_real_counts_reconcile_with_reservations_tab` | Resuelto (rama `fix/prevision-ajustes`) |
 
 ---
 
@@ -87,6 +89,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 7 | 2026-10-26 | La previsión semanal sumaba solo los días desde hoy | La semana actual aparecía con una caída falsa en el gráfico | Detectado por la IA al diseñar el gráfico; se usa el total del modelo para la semana completa (verificado en `test_constant_demand_split_by_weekday`) |
 | 8 | 2026-10-26 | Clasificó la demanda con umbrales absolutos (< 40 % = baja) | Con un negocio de ocupación moderada todos los días y casi todas las horas eran "baja demanda": la sugerencia no ayudaba a decidir | Detectado por la IA al probar con el histórico liviano; días y horas se comparan contra el promedio del negocio (≥ 125 % mayor, ≤ 75 % menor) y el 85 % absoluto queda solo para "casi lleno" (test `test_days_classified_against_business_average`) |
 | 9 | 2026-10-26 | Proyectó la tendencia lineal sin límite y permitió prever menos citas que las ya reservadas | Con pocos datos, un mes flojo llevaba la previsión de un servicio a 0 ("nadie volverá a pedirlo") y el KPI ignoraba reservas reales | Detectado por el revisor (H-27); corregido con tendencia amortiguada y piso (tests `test_declining_trend_is_damped_and_floored` y `test_forecast_never_below_booked`) |
+| 10 | 2026-10-26 | Mezcló en los mismos KPIs citas reales y estimadas, con categorías que se solapaban | Era imposible cuadrar "Ver Estadísticas" con la pestaña Reservas y el revisor pensó que había conteos dobles | Detectado por el revisor (H-28); se separaron por completo las secciones real y previsión |
 
 ---
 
@@ -102,6 +105,8 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 6 | 2026-10-26 | Además de escapar, validar el nombre en el backend con una lista de caracteres permitidos (defensa en profundidad) | Rechazada | El equipo prefirió el plan original: solo escapar al mostrar en el admin |
 | 7 | 2026-10-26 | Horizonte de previsión seleccionable en meses (1, 2 o 3) | Modificada | El revisor propuso un rango desde/hasta que filtre todos los gráficos |
 | 8 | 2026-10-26 | Mantener un histórico grande para que aparezca "alta demanda" en la demo | Rechazada | Se prefirió un histórico liviano y realista, con días de poca demanda |
+| 9 | 2026-10-26 | Mostrar "Citas registradas / Previsión adicional / Total esperado" como KPIs juntos | Rechazada | El revisor prefirió datos reales por defecto y la previsión aparte |
+| 10 | 2026-10-26 | Sub-pestañas "Datos reales" y "Previsión" dentro de Ver Estadísticas | Modificada | El revisor eligió un interruptor "Mostrar previsión" sobre los mismos gráficos |
 
 ---
 
@@ -148,6 +153,8 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 37 | 2026-10-26 | Amortiguar la tendencia (±10 %/semana, piso del 50 %) y no prever menos que lo reservado | Recta sin límite | Samuel Saenz |
 | 38 | 2026-10-26 | Sugerencias al final de la vista, con un botón destacado arriba que muestra cuántas hay y desplaza hasta ellas | Sugerencias arriba | Samuel Saenz |
 | 39 | 2026-10-26 | Separar "Citas por servicio" e "Ingresos por servicio" en dos gráficos, ambos clicables para filtrar | Un solo gráfico con ingresos y citas en el detalle | Samuel Saenz |
+| 40 | 2026-10-26 | Datos reales por defecto; previsión solo con el interruptor "Mostrar previsión", sobre los mismos gráficos pero claramente diferenciada (US-03 se cumple al activarlo) | Quitar la previsión; sub-pestañas | Samuel Saenz |
+| 41 | 2026-10-26 | En datos reales mostrar primero el total de reservas y luego las citas registradas | Solo registradas | Samuel Saenz |
 
 ---
 
@@ -170,6 +177,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 2026-10-26 | `pytest -q` (US-03) | 78/78 OK | 12 tests nuevos en `test_forecast.py`: recta de tendencia, turnos bloqueados, demanda constante repartida por día, tendencia creciente, canceladas excluidas, ingresos con precio pagado, horizonte y días cerrados, reservas ya tomadas, sin histórico, sugerencias, token y rango de meses. `seed_history.py` verificado en BD temporal: 0 solapes, 0 domingos, idempotente |
 | 2026-10-26 | `pytest -q` (#20) | 86/86 OK | `test_forecast.py` reescrito (21 tests): rango con datos reales y previsión, valores por defecto, validaciones (hasta < desde, límite de reservas, > 1 año, servicio inexistente), filtro por servicio, base de la ocupación por hora, KPIs de ticket y cancelación, clasificación relativa |
 | 2026-10-26 | `pytest -q` (fix/prevision-ajustes) | 88/88 OK | 2 tests nuevos: tendencia decreciente amortiguada con piso y previsión nunca menor que lo reservado; el de tendencia creciente se ajustó a la pendiente amortiguada |
+| 2026-10-26 | `pytest -q` (H-28) | 90/90 OK | `test_forecast.py` reescrito para las secciones `real` y `forecast`: conciliación con /api/admin/stats, ingresos cobrados, base de la ocupación, sección real sin estimaciones, KPI filtrado = barra del servicio, previsión no disponible en rango pasado, sugerencias de previsión rotuladas |
 
 ## 7. Pruebas manuales (QA)
 
