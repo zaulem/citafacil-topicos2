@@ -48,6 +48,14 @@
   .modal-close{float:right;background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer}
   .session-note{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:10px;padding:10px 14px;font-size:.86rem;margin-bottom:16px;display:none}
 
+  /* Pago simulado (US-01) */
+  .pay{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:18px}
+  .pay h3{font-size:.95rem;margin-bottom:10px;display:flex;align-items:center;gap:8px} .pay h3 i{color:var(--accent)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .opt{display:flex;align-items:center;gap:9px;font-size:.9rem;margin-bottom:10px;cursor:pointer;color:var(--text);font-weight:500}
+  .opt input{width:auto;accent-color:var(--accent)}
+  .pay-hint{color:var(--muted);font-size:.78rem;margin-top:4px}
+
   .hero{padding:48px 0 10px;text-align:center;position:relative}
   .hero::before{content:"";position:absolute;top:-40px;left:50%;transform:translateX(-50%);width:460px;height:300px;
     background:radial-gradient(circle,rgba(59,130,246,.16),transparent 70%);pointer-events:none}
@@ -206,6 +214,22 @@
       <div class="field"><label for="name">Nombre y apellido</label><input id="name" placeholder="Ej: Camila Rojas" autocomplete="name" /></div>
       <div class="field"><label for="phone">Celular (WhatsApp)</label><input id="phone" placeholder="+507 6XXX XXXX" inputmode="tel" autocomplete="tel" /></div>
       <div class="field"><label for="notes">Nota (opcional)</label><input id="notes" placeholder="Algo que debamos saber" /></div>
+      <div class="pay" id="payBox">
+        <h3><i class="fa-solid fa-credit-card"></i> Pago</h3>
+        <div id="savedOpts" style="display:none">
+          <label class="opt"><input type="radio" name="payMode" value="saved" checked /> Usar mi tarjeta <b id="savedLabel"></b></label>
+          <label class="opt"><input type="radio" name="payMode" value="new" /> Usar otra tarjeta</label>
+        </div>
+        <div id="cardForm">
+          <div class="field"><label for="cardNumber">Número de tarjeta</label><input id="cardNumber" inputmode="numeric" autocomplete="cc-number" placeholder="4242 4242 4242 4242" maxlength="23" /></div>
+          <div class="row2">
+            <div class="field"><label for="cardExp">Vencimiento</label><input id="cardExp" placeholder="MM/AA" autocomplete="cc-exp" maxlength="5" /></div>
+            <div class="field"><label for="cardCvv">CVV</label><input id="cardCvv" inputmode="numeric" autocomplete="cc-csc" placeholder="123" maxlength="4" /></div>
+          </div>
+          <label class="opt" id="saveCardWrap" style="display:none"><input type="checkbox" id="saveCard" /> Guardar tarjeta para próximas compras</label>
+        </div>
+        <p class="pay-hint">Pago simulado: no se realiza ningún cobro real. Tarjeta de prueba: 4242 4242 4242 4242.</p>
+      </div>
       <button class="btn" id="confirmBtn"><i class="fa-solid fa-check"></i> Confirmar reserva</button>
       <div class="msg" id="formMsg"></div>
     </div>
@@ -485,6 +509,7 @@
     const fecha = d.toLocaleDateString("es-PA",{weekday:"long",day:"2-digit",month:"long"});
     $("summary").innerHTML = `<b>${state.service.name}</b> · ${fecha} a las <b>${t}</b> · ${money(state.service.price_cents)}`;
     setStep(3);
+    $("confirmBtn").innerHTML = confirmLabel();
     $("cardWho").scrollIntoView({behavior:"smooth", block:"center"});
   }
 
@@ -493,14 +518,20 @@
     const msg = $("formMsg"); msg.className="msg";
     if(name.length<2 || !phone){ msg.className="msg err"; msg.textContent="Completa tu nombre y celular."; return; }
     if(!state.service || !state.date || !state.time){ msg.className="msg err"; msg.textContent="Elige servicio, día y hora."; return; }
-    const btn=$("confirmBtn"); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Confirmando…';
+    const payment = buildPayment();
+    if(payment.error){ msg.className="msg err"; msg.textContent=payment.error; return; }
+    const btn=$("confirmBtn"); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Procesando pago…';
     try{
       const payload={customer_name:name, customer_phone:phone, service_id:state.service.id,
-        start_at:`${state.date}T${state.time}:00`, notes:$("notes").value.trim()};
-      await api("/api/appointments",{method:"POST",headers:Object.assign({"Content-Type":"application/json"}, authHeaders()),body:JSON.stringify(payload)}, 65000);
+        start_at:`${state.date}T${state.time}:00`, notes:$("notes").value.trim(), payment};
+      const appt = await api("/api/appointments",{method:"POST",headers:Object.assign({"Content-Type":"application/json"}, authHeaders()),body:JSON.stringify(payload)}, 65000);
+      clearCardForm();
+      if(payment.save_card) loadSavedCard();
       const d=new Date(state.date+"T"+state.time);
       const fecha=d.toLocaleDateString("es-PA",{weekday:"long",day:"2-digit",month:"long"});
-      $("doneMsg").innerHTML=`Te esperamos el <b>${fecha}</b> a las <b>${state.time}</b>.<br>Te enviamos la confirmación por WhatsApp a ${phone}.`;
+      $("doneMsg").innerHTML=`Te esperamos el <b>${fecha}</b> a las <b>${state.time}</b>.<br>`
+        + `Pago aprobado: <b>${money(appt.price_paid_cents)}</b> con ${esc(appt.payment_brand)} •••• ${esc(appt.payment_last4)}.<br>`
+        + `Te enviamos la confirmación por WhatsApp a ${esc(phone)}.`;
       ["cardSvc","cardWhen","cardWho"].forEach(id=>$(id).style.display="none");
       document.querySelector(".steps").style.display="none";
       $("cardDone").style.display="block";
@@ -511,8 +542,62 @@
       // Solo si el horario ya fue tomado (409) se recargan los horarios; en errores
       // de validación (p. ej. teléfono) se conserva la hora elegida para corregir el dato.
       if(e.status===409){ loadMonth(state.month); loadSlots(); }
-    }finally{ btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-check"></i> Confirmar reserva'; }
+      $("cardCvv").value = ""; // el CVV no se conserva entre intentos
+    }finally{ btn.disabled=false; btn.innerHTML=confirmLabel(); }
   });
+
+  /* ====== PAGO SIMULADO (US-01) ====== */
+  // Con sesión y tarjeta guardada se paga con un clic ("use_saved_card"); si no, se
+  // llena la tarjeta. El backend solo guarda marca y últimos 4 dígitos.
+  let savedCard = null;
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const payMode = () => (document.querySelector('input[name="payMode"]:checked') || {}).value;
+
+  function confirmLabel(){
+    const amount = state.service ? " " + money(state.service.price_cents) : "";
+    return `<i class="fa-solid fa-lock"></i> Pagar${amount} y confirmar`;
+  }
+
+  function renderPayment(){
+    const useSaved = !!(session && savedCard);
+    $("savedOpts").style.display = useSaved ? "block" : "none";
+    if(useSaved){
+      const yy = String(savedCard.exp_year).slice(2);
+      $("savedLabel").textContent = `${savedCard.brand} •••• ${savedCard.last4} (vence ${String(savedCard.exp_month).padStart(2,"0")}/${yy})`;
+    }
+    $("cardForm").style.display = useSaved && payMode() === "saved" ? "none" : "block";
+    $("saveCardWrap").style.display = session ? "flex" : "none";
+    if(!session) $("saveCard").checked = false;
+  }
+  document.querySelectorAll('input[name="payMode"]').forEach(r => r.addEventListener("change", renderPayment));
+
+  async function loadSavedCard(){
+    savedCard = null;
+    if(session){
+      try{ savedCard = await api("/api/me/card", {headers:authHeaders()}, 65000); }
+      catch(e){ savedCard = null; } // 404: no tiene tarjeta guardada
+    }
+    if(savedCard) document.querySelector('input[name="payMode"][value="saved"]').checked = true;
+    renderPayment();
+  }
+
+  // "MM/AA" al escribir el vencimiento
+  $("cardExp").addEventListener("input", e=>{
+    const d = e.target.value.replace(/\D/g, "").slice(0, 4);
+    e.target.value = d.length > 2 ? d.slice(0,2) + "/" + d.slice(2) : d;
+  });
+
+  function buildPayment(){
+    if(session && savedCard && payMode() === "saved") return {use_saved_card: true};
+    const number = $("cardNumber").value.trim(), cvv = $("cardCvv").value.trim();
+    const m = $("cardExp").value.match(/^(\d{2})\/(\d{2})$/);
+    if(!number || !cvv) return {error: "Completa los datos de la tarjeta."};
+    if(!m) return {error: "Escribe el vencimiento como MM/AA."};
+    return {card: {number, exp_month: Number(m[1]), exp_year: Number(m[2]), cvv},
+            save_card: !!session && $("saveCard").checked};
+  }
+
+  function clearCardForm(){ ["cardNumber","cardExp","cardCvv"].forEach(id => $(id).value = ""); $("saveCard").checked = false; }
 
   /* ====== CUENTA DE CLIENTE (US-01) ====== */
   // La sesión ({token, customer}) se guarda en localStorage; el token viaja en la
@@ -525,9 +610,11 @@
   const fmtPhone = p => /^\+507\d{8}$/.test(p) ? `+507 ${p.slice(4,8)} ${p.slice(8)}` : p;
 
   function saveSession(s){
+    const changed = (session && session.token) !== (s && s.token);
     session = s;
     try{ s ? localStorage.setItem(SESSION_KEY, JSON.stringify(s)) : localStorage.removeItem(SESSION_KEY); }catch(e){}
     renderAccount();
+    if(changed) loadSavedCard(); // al entrar o salir cambia la tarjeta disponible
   }
 
   function renderAccount(){
@@ -598,6 +685,7 @@
     try{
       const c = await api("/api/me", {headers:authHeaders()}, 65000);
       saveSession({token: session.token, customer: c});
+      loadSavedCard(); // mismo token: saveSession no la recarga por sí sola
     }catch(e){
       if(e.status === 401) saveSession(null);
     }

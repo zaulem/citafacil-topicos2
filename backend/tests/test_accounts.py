@@ -12,6 +12,9 @@ from app.utils import local_now, utc_now
 
 client = TestClient(app)
 
+# Desde US-01 toda reserva lleva pago (simulado). Tarjeta de prueba aprobada.
+CARD = {"number": "4242 4242 4242 4242", "exp_month": 12, "exp_year": 2030, "cvv": "123"}
+
 USER = {"email": "Ana@Correo.com", "password": "clave-segura-1", "name": "Ana Pérez", "phone": "6123-4567"}
 
 
@@ -155,7 +158,7 @@ def _book(headers=None, hour=11):
         "/api/appointments",
         headers=headers or {},
         json={"customer_name": "Ana", "customer_phone": "61234567", "service_id": sid,
-              "start_at": _next_open_day_at(hour).isoformat()},
+              "start_at": _next_open_day_at(hour).isoformat(), "payment": {"card": CARD}},
     )
 
 
