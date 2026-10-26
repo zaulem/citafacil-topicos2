@@ -1,4 +1,4 @@
-"""Utilidades: validación de teléfono chileno y manejo de fechas locales."""
+"""Utilidades: validación de teléfono panameño y manejo de fechas locales."""
 from __future__ import annotations
 
 import re
@@ -12,33 +12,24 @@ class PhoneError(ValueError):
     """Error de validación de número telefónico."""
 
 
-def normalize_cl_phone(raw: str) -> str:
-    """Normaliza un celular chileno a formato E.164 (+569XXXXXXXX).
+def normalize_pa_phone(raw: str) -> str:
+    """Normaliza un celular panameño a formato E.164 (+5076XXXXXXX).
 
+    Los celulares de Panamá tienen 8 dígitos y empiezan por 6.
     Acepta entradas como:
-        "+56 9 4291 6570", "56942916570", "9 4291 6570",
-        "942916570", "+569 4291 6570"
+        "+507 6123 4567", "50761234567", "0050761234567",
+        "6123-4567", "61234567"
     """
     digits = re.sub(r"[^\d]", "", raw or "")
-    if digits.startswith("56"):          # prefijo país
+    if digits.startswith("00"):          # prefijo internacional 00
         digits = digits[2:]
-    if digits.startswith("0"):           # 0 de larga distancia
-        digits = digits[1:]
-    if len(digits) == 8:                 # faltó el 9 inicial del móvil
-        digits = "9" + digits
-    if len(digits) != 9 or not digits.startswith("9"):
+    if digits.startswith("507"):         # prefijo país
+        digits = digits[3:]
+    if len(digits) != 8 or not digits.startswith("6"):
         raise PhoneError(
-            "Número de celular chileno inválido. Usa el formato +56 9 XXXX XXXX."
+            "Número de celular panameño inválido. Usa el formato +507 6XXX XXXX."
         )
-    return "+56" + digits
-
-
-def format_cl_phone(e164: str) -> str:
-    """Formatea +56912345678 -> '+56 9 1234 5678' para mostrar."""
-    d = e164.replace("+56", "")
-    if len(d) == 9:
-        return f"+56 {d[0]} {d[1:5]} {d[5:]}"
-    return e164
+    return "+507" + digits
 
 
 def local_now() -> datetime:

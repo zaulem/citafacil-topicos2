@@ -21,7 +21,7 @@ services:
       - key: BUSINESS_NAME
         value: "Barbería Don Lucho"
       - key: BUSINESS_TIMEZONE
-        value: "America/Santiago"
+        value: "America/Panama"
       - key: CORS_ORIGINS
         value: "*"
       # Twilio: se configuran a mano en el panel (secretos). Vacíos = modo demo.

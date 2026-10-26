@@ -7,14 +7,14 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .models import VALID_STATUSES
-from .utils import PhoneError, normalize_cl_phone, to_local_naive
+from .utils import PhoneError, normalize_pa_phone, to_local_naive
 
 
 # ---------- Servicios ----------
 class ServiceBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=120)
     duration_min: int = Field(30, ge=5, le=480)
-    price: int = Field(0, ge=0)
+    price_cents: int = Field(0, ge=0, description="Precio en centavos de USD (1250 = $12.50)")
     active: bool = True
 
 
@@ -25,7 +25,7 @@ class ServiceCreate(ServiceBase):
 class ServiceUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=120)
     duration_min: Optional[int] = Field(None, ge=5, le=480)
-    price: Optional[int] = Field(None, ge=0)
+    price_cents: Optional[int] = Field(None, ge=0)
     active: Optional[bool] = None
 
 
@@ -37,7 +37,7 @@ class ServiceOut(ServiceBase):
 # ---------- Citas ----------
 class AppointmentCreate(BaseModel):
     customer_name: str = Field(..., min_length=2, max_length=120)
-    customer_phone: str = Field(..., examples=["+56 9 4291 6570"])
+    customer_phone: str = Field(..., examples=["+507 6123 4567"])
     service_id: int
     start_at: datetime = Field(..., description="Inicio de la cita (ISO 8601)")
     notes: str = Field("", max_length=300)
@@ -46,7 +46,7 @@ class AppointmentCreate(BaseModel):
     @classmethod
     def _validate_phone(cls, v: str) -> str:
         try:
-            return normalize_cl_phone(v)
+            return normalize_pa_phone(v)
         except PhoneError as e:
             raise ValueError(str(e))
 

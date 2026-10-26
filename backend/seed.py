@@ -9,14 +9,14 @@ from datetime import timedelta
 from app import models
 from app.config import settings
 from app.database import Base, SessionLocal, engine
-from app.utils import local_now, normalize_cl_phone
+from app.utils import local_now, normalize_pa_phone
 
 SERVICES = [
-    {"name": "Corte de pelo", "duration_min": 30, "price": 8000},
-    {"name": "Corte + Barba", "duration_min": 45, "price": 12000},
-    {"name": "Perfilado de barba", "duration_min": 20, "price": 6000},
-    {"name": "Corte niño", "duration_min": 25, "price": 6500},
-    {"name": "Tinte / Color", "duration_min": 60, "price": 18000},
+    {"name": "Corte de pelo", "duration_min": 30, "price_cents": 800},
+    {"name": "Corte + Barba", "duration_min": 45, "price_cents": 1250},
+    {"name": "Perfilado de barba", "duration_min": 20, "price_cents": 600},
+    {"name": "Corte niño", "duration_min": 25, "price_cents": 650},
+    {"name": "Tinte / Color", "duration_min": 60, "price_cents": 1800},
 ]
 
 
@@ -44,14 +44,14 @@ def run() -> None:
             barba = db.query(models.Service).filter_by(name="Corte + Barba").first()
             base = _next_open_day(11)
             ejemplos = [
-                ("Camila Rojas", "+56 9 8765 4321", corte, base),
-                ("Diego Soto", "+56 9 1234 5678", barba, base.replace(hour=12)),
+                ("Camila Rojas", "+507 6876 5432", corte, base),
+                ("Diego Soto", "+507 6123 4567", barba, base.replace(hour=12)),
             ]
             for name, phone, svc, start in ejemplos:
                 db.add(
                     models.Appointment(
                         customer_name=name,
-                        customer_phone=normalize_cl_phone(phone),
+                        customer_phone=normalize_pa_phone(phone),
                         service_id=svc.id,
                         start_at=start,
                         end_at=start + timedelta(minutes=svc.duration_min),
