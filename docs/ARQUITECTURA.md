@@ -60,7 +60,7 @@ Se divide en dos PRs: **A** (cuentas de cliente) y **B** (pago simulado y tarjet
 - **Backend:** `GET /api/admin/forecast`, que agrega el histórico por día de la semana, franja horaria y servicio, y proyecta las próximas semanas con media móvil más estacionalidad semanal, sin librerías nuevas.
 - **Datos:** script `seed_history.py` con unos 6 meses de citas.
 - **Frontend:** Chart.js 4.4.1 por CDN en `admin.html`, en la pestaña "Ver Estadísticas" (la pestaña "Reservas" es la vista por defecto).
-- **Implementado** (`app/forecast.py`): promedio de las últimas 8 semanas completas + tendencia lineal; horizonte de 1 a 3 meses; ocupación medida en turnos bloqueados (una cita de 20 min ocupa un turno de 30); sugerencias con umbrales de 85 % (alta) y 40 % (baja).
+- **Implementado** (`app/forecast.py`, Issue #20): modelo con las 8 semanas completas anteriores a hoy (promedio + tendencia lineal), siempre las mismas; un rango desde/hasta (por defecto últimas 4 semanas + próximo mes, máximo el límite de reservas) decide qué se muestra: días pasados con datos reales y desde hoy la previsión y las reservas ya tomadas. Filtro cruzado por servicio. Ocupación en turnos bloqueados; días y horas se clasifican contra el promedio del negocio (≥ 125 % mayor demanda, ≤ 75 % menor) y el 85 % absoluto marca "casi lleno".
 
 ### US-04 · Teléfonos y localización de Panamá (propia)
 > Como cliente en Panamá, quiero registrar mi celular con formato +507, para recibir la confirmación de mi reserva en mi WhatsApp local.
@@ -91,7 +91,7 @@ Se divide en dos PRs: **A** (cuentas de cliente) y **B** (pago simulado y tarjet
 cd backend
 del citafacil.db                       # PowerShell: Remove-Item citafacil.db
 $env:PYTHONUTF8=1; python seed.py      # PYTHONUTF8 evita el error de H-04
-python seed_history.py                 # opcional: ~6 meses de histórico para "Ver Estadísticas" (US-03)
+python seed_history.py                 # opcional: ~300 citas en 3 meses para "Ver Estadísticas" (US-03)
 ```
 Al iniciar, el backend vuelve a crear las tablas con `create_all()`.
 

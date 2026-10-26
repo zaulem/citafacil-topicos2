@@ -1,7 +1,7 @@
 """Endpoints de administración (requieren cabecera X-Admin-Token)."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,9 +9,13 @@ from sqlalchemy.orm import Session
 
 from .. import crud, schemas
 from ..auth import require_admin
+from ..availability import max_booking_date
 from ..database import get_db
 from ..forecast import build_forecast
 from ..reminders import run_reminders
+from ..utils import add_months, local_now
+
+MAX_RANGE_DAYS = 366  # rango máximo de la vista "Ver Estadísticas"
 
 router = APIRouter(
     prefix="/api/admin",
@@ -83,10 +87,29 @@ def get_stats(db: Session = Depends(get_db)):
 
 @router.get("/forecast", response_model=schemas.ForecastOut, summary="Previsión de demanda (US-03)")
 def get_forecast(
-    months: int = Query(1, ge=1, le=3, description="Horizonte de la previsión en meses (1 a 3)"),
+    start: Optional[date] = Query(None, description="Desde (YYYY-MM-DD). Por defecto, hace 4 semanas"),
+    end: Optional[date] = Query(None, description="Hasta (YYYY-MM-DD). Por defecto, en 1 mes; máximo, el límite de reservas"),
+    service_id: Optional[int] = Query(None, description="Filtrar todo por un servicio"),
     db: Session = Depends(get_db),
 ):
-    return build_forecast(db, months)
+    today = local_now().date()
+    start = start or today - timedelta(weeks=4)
+    end = end or add_months(today, 1) - timedelta(days=1)
+    if end < start:
+        raise HTTPException(status_code=422, detail="La fecha 'hasta' debe ser igual o posterior a 'desde'.")
+    if end > max_booking_date():
+        raise HTTPException(
+            status_code=422,
+            detail=f"La fecha 'hasta' no puede pasar del {max_booking_date():%d/%m/%Y} (límite de reservas).",
+        )
+    if (end - start).days > MAX_RANGE_DAYS:
+        raise HTTPException(status_code=422, detail="El rango no puede superar un año.")
+    service = None
+    if service_id is not None:
+        service = crud.get_service(db, service_id)
+        if not service:
+            raise HTTPException(status_code=404, detail="Servicio no encontrado.")
+    return build_forecast(db, start, end, service)
 
 
 @router.post("/reminders/run", summary="Enviar recordatorios ahora")

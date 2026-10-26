@@ -208,48 +208,51 @@ class MonthAvailabilityOut(BaseModel):
     days: list[DayAvailabilityOut]
 
 
-# ---------- Previsión de demanda (US-03) ----------
+# ---------- Previsión de demanda (US-03, #20) ----------
 class ForecastKpis(BaseModel):
-    expected_appointments: float
-    booked_appointments: int
-    expected_revenue_cents: int
-    expected_occupancy_pct: float
+    real_appointments: int = Field(..., description="Citas reales (días pasados del rango)")
+    expected_appointments: float = Field(..., description="Citas previstas (desde hoy hasta el fin del rango)")
+    booked_appointments: int = Field(..., description="Citas ya reservadas (desde hoy)")
+    revenue_cents: int = Field(..., description="Ingresos reales + previstos")
+    occupancy_pct: float
+    avg_ticket_cents: int
+    cancellation_rate_pct: float
     trend_pct_per_week: float
-
-
-class HistoryWeek(BaseModel):
-    week_start: str
-    appointments: int
-    revenue_cents: int
 
 
 class ForecastWeek(BaseModel):
     week_start: str
+    real: int
     expected: float
     booked: int
 
 
 class ForecastDay(BaseModel):
     date: str
-    expected: float
-    booked: int
-    expected_occupancy_pct: float
-    booked_occupancy_pct: float
+    kind: str = Field(..., description="real (día pasado) | forecast (desde hoy)")
+    real: Optional[int] = None
+    expected: Optional[float] = None
+    booked: Optional[int] = None
+    occupancy_pct: float
+    booked_occupancy_pct: Optional[float] = None
 
 
 class WeekdayOccupancy(BaseModel):
     weekday: str
-    avg_appointments: float
-    historical_occupancy_pct: float
-    expected_occupancy_pct: float
+    real_occupancy_pct: Optional[float] = None
+    expected_occupancy_pct: Optional[float] = None
+    occupancy_pct: Optional[float] = Field(None, description="La usada para clasificar: prevista si hay días futuros; si no, real")
+    level: str = Field(..., description="high | low | normal, comparado con el promedio del negocio")
 
 
 class HourOccupancy(BaseModel):
     hour: str
     occupancy_pct: float
+    level: str = Field(..., description="high | low | normal, comparado con el promedio")
 
 
 class ServiceRevenue(BaseModel):
+    service_id: int
     service: str
     appointments: int
     revenue_cents: int
@@ -260,14 +263,21 @@ class Suggestion(BaseModel):
     text: str
 
 
+class ServiceRef(BaseModel):
+    id: int
+    name: str
+
+
 class ForecastOut(BaseModel):
-    months: int
+    start: str
+    end: str
     today: str
-    horizon_end: str
+    max_date: str = Field(..., description="Último día que se puede consultar (límite de reservas)")
+    service: Optional[ServiceRef] = None
+    hour_basis: str = Field(..., description="real | booked: qué citas usa la ocupación por hora")
     kpis: ForecastKpis
-    history: list[HistoryWeek]
-    forecast_weekly: list[ForecastWeek]
-    forecast_daily: list[ForecastDay]
+    weekly: list[ForecastWeek]
+    daily: list[ForecastDay]
     by_weekday: list[WeekdayOccupancy]
     by_hour: list[HourOccupancy]
     by_service: list[ServiceRevenue]

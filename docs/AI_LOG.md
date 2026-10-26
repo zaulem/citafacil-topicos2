@@ -33,7 +33,8 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 14 | 2026-10-26 | Código / Testing | Claude Code | Implementar US-01 parte A (#10): cuentas de cliente con correo y contraseña, solo biblioteca estándar | Registro, login con bloqueo tras 5 intentos, logout, `/api/me`, reservas asociadas al cliente y frontend con ventana de acceso; 17 tests nuevos (40/40). Detectó el riesgo H-19 al separar los tests y lo resolvió con `conftest.py`. Evitó insertar el nombre del cliente como HTML | Aceptado; QA aprobado (QA-14 a QA-20), PR #16 | H-19, H-20, H-21 |
 | 15 | 2026-10-26 | Código / Testing | Claude Code | Implementar US-01 parte B (#10): pago simulado obligatorio, tarjeta guardada (una por cliente), tarjeta de prueba rechazada y columna Pago en admin | Validación de tarjeta (Luhn, marca, vencimiento, CVV), cobro antes de crear la cita, endpoints `/api/me/card`; 19 tests nuevos y 7 existentes adaptados al pago obligatorio (59/59). En su autorrevisión corrigió una aserción vacía en un test y un caso en que la tarjeta guardada no se cargaba al recargar la página | Aceptado; QA aprobado (QA-21 a QA-27), PR #17 | H-15, H-22, H-23 |
 | 16 | 2026-10-26 | Seguridad | Claude Code | Corregir H-23 y agregar política de contraseña (rama `fix/seguridad`) | Escape de nombre, teléfono, servicio y tarjeta en la tabla del admin; contraseña con mayúscula, minúscula y número validada en backend, con guía visual en el registro; 7 tests nuevos (66/66). Se comprobó que el test de H-23 falla con la versión sin arreglo | Aceptado; QA aprobado (QA-28 a QA-32), PR #18 | H-23 |
-| 17 | 2026-10-26 | Código / Testing | Claude Code | Implementar US-03 (#12): histórico de ejemplo, previsión de demanda con sugerencias y vista "Ver Estadísticas" con Chart.js | `seed_history.py` (~6 meses, reproducible, sin solapes), endpoint `/api/admin/forecast` (promedio de 8 semanas + tendencia lineal, horizonte 1–3 meses), pestañas Reservas / Ver Estadísticas, 4 gráficos, KPIs y sugerencias; 12 tests nuevos (78/78). La IA corrigió dos fallos de su propio diseño antes del commit (ver respuestas incorrectas #6 y #7) | Aceptado; pendiente QA manual | — |
+| 17 | 2026-10-26 | Código / Testing | Claude Code | Implementar US-03 (#12): histórico de ejemplo, previsión de demanda con sugerencias y vista "Ver Estadísticas" con Chart.js | `seed_history.py` (~6 meses, reproducible, sin solapes), endpoint `/api/admin/forecast` (promedio de 8 semanas + tendencia lineal, horizonte 1–3 meses), pestañas Reservas / Ver Estadísticas, 4 gráficos, KPIs y sugerencias; 12 tests nuevos (78/78). La IA corrigió dos fallos de su propio diseño antes del commit (ver respuestas incorrectas #6 y #7) | Aceptado; QA aprobado (QA-33 a QA-39) con observaciones de revisión → Issue #20; PR #19 | — |
+| 18 | 2026-10-26 | Revisión / Código | Claude Code | Iteración #20 (sub-issue de #12) a partir de la revisión funcional: tabla con desplazamiento, histórico liviano, rango de fechas, filtro cruzado por servicio y KPIs nuevos | Endpoint con `start`, `end` y `service_id`; días pasados = datos reales, desde hoy = previsión; servicios arriba y clicables; ticket promedio y tasa de cancelación; histórico de 299 citas en 3 meses; 21 tests de previsión (86/86). Con los datos livianos se vio que las sugerencias con umbral absoluto no servían y se pasó a una clasificación relativa (respuesta incorrecta #8) | Aceptado; pendiente QA manual | H-24, H-25, H-26 |
 
 ---
 
@@ -65,6 +66,9 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | H-21 | 2026-10-26 | Deuda técnica (original) | `Appointment.created_at` usa `datetime.utcnow`, obsoleto en Python 3.12 (genera advertencias en los tests) | Advertencias de pytest | Las tablas nuevas usan `utc_now()`; la del código original se deja igual por ahora | Pendiente (menor) |
 | H-22 | 2026-10-26 | Seguridad (original) | El mensaje final de la reserva insertaba el celular escrito por el usuario como HTML | Revisión al modificar ese mensaje en US-01 B | Se escapa el texto (`esc()`) en ese mensaje | Resuelto (US-01 B, PR #17) |
 | H-23 | 2026-10-26 | Seguridad (original) | El panel admin inserta como HTML el nombre del cliente (`innerHTML`). Cualquier visitante puede reservar con un nombre que contenga código, y ese código se ejecutaría en el navegador del administrador (XSS almacenado) | Revisión del panel admin al agregar la columna Pago | Escape (`esc()`) al mostrar nombre, teléfono, servicio y tarjeta en la tabla del admin. Test `test_frontend_security.py` (estático + ejecución real con Node.js) | Resuelto (PR #18) |
+| H-24 | 2026-10-26 | Usabilidad | La tabla de reservas del admin no tenía límite de alto: con el histórico se volvía interminable y ocultaba la sección de servicios | Revisión funcional (Samuel Saenz) | Caja con desplazamiento interno y encabezados fijos | Resuelto (#20) |
+| H-25 | 2026-10-26 | Inconsistencia (IA) | El filtro de "Ver Estadísticas" solo afectaba a la previsión: el gráfico semanal mostraba siempre 6 meses y el de ingresos otro periodo | Revisión funcional (Samuel Saenz) | Un único rango de fechas (desde/hasta) filtra todos los gráficos y KPIs | Resuelto (#20) |
+| H-26 | 2026-10-26 | Datos de demo | El histórico de ejemplo (~1.500 citas en 6 meses) era excesivo para una demo | Revisión funcional (Samuel Saenz) | `seed_history.py`: ~300 citas en 3 meses, con variación diaria (días flojos y buenos) | Resuelto (#20) |
 
 ---
 
@@ -79,6 +83,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 5 | 2026-10-26 | Escribió en un test la aserción `"123" not in appt.payment_last4`, que se cumple siempre y no prueba nada sobre el CVV | Aserción vacía: daba falsa seguridad | Detectado por la IA al revisar sus tests antes del commit; reemplazada por una verificación de que no existe columna para el CVV ni el número |
 | 6 | 2026-10-26 | Midió la ocupación en minutos de servicio en vez de turnos bloqueados | En una agenda por turnos de 30 min, un servicio de 20 min bloquea el turno entero: la ocupación quedaba subestimada (tope real ≈ 80 % aun con el día lleno) y nunca aparecía la sugerencia de alta demanda | Detectado por la IA al revisar los resultados del histórico de ejemplo; se mide en turnos bloqueados (test `test_occupancy_counts_blocked_slots`) |
 | 7 | 2026-10-26 | La previsión semanal sumaba solo los días desde hoy | La semana actual aparecía con una caída falsa en el gráfico | Detectado por la IA al diseñar el gráfico; se usa el total del modelo para la semana completa (verificado en `test_constant_demand_split_by_weekday`) |
+| 8 | 2026-10-26 | Clasificó la demanda con umbrales absolutos (< 40 % = baja) | Con un negocio de ocupación moderada todos los días y casi todas las horas eran "baja demanda": la sugerencia no ayudaba a decidir | Detectado por la IA al probar con el histórico liviano; días y horas se comparan contra el promedio del negocio (≥ 125 % mayor, ≤ 75 % menor) y el 85 % absoluto queda solo para "casi lleno" (test `test_days_classified_against_business_average`) |
 
 ---
 
@@ -92,6 +97,8 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 4 | 2026-10-25 | US-04: selector de país con buscador propio y ~22 países validados en backend | Modificada | Alcance reducido: solo Panamá (+507), igual que el original con Chile |
 | 5 | 2026-10-25 | US-01: login con teléfono + PIN de 6 dígitos y bloqueo tras 5 intentos | Modificada | Se prefiere correo + contraseña (más seguro que un PIN; sin librerías nuevas). Se mantiene el bloqueo por intentos |
 | 6 | 2026-10-26 | Además de escapar, validar el nombre en el backend con una lista de caracteres permitidos (defensa en profundidad) | Rechazada | El equipo prefirió el plan original: solo escapar al mostrar en el admin |
+| 7 | 2026-10-26 | Horizonte de previsión seleccionable en meses (1, 2 o 3) | Modificada | El revisor propuso un rango desde/hasta que filtre todos los gráficos |
+| 8 | 2026-10-26 | Mantener un histórico grande para que aparezca "alta demanda" en la demo | Rechazada | Se prefirió un histórico liviano y realista, con días de poca demanda |
 
 ---
 
@@ -129,6 +136,12 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 28 | 2026-10-26 | Incluir sugerencias automáticas de precio e inventario | Solo gráficos | Samuel Saenz |
 | 29 | 2026-10-26 | Horizonte de previsión dinámico: 1 mes por defecto, seleccionable hasta 3 meses | Horizonte fijo en semanas | Samuel Saenz |
 | 30 | 2026-10-26 | Panel admin con dos pestañas: "Reservas" (por defecto) y "Ver Estadísticas" | Gráficos debajo de las reservas; botón que alterna | Samuel Saenz |
+| 31 | 2026-10-26 | Tabla de reservas en una caja con desplazamiento interno | Paginación | Samuel Saenz |
+| 32 | 2026-10-26 | Histórico de demo: ~300 citas en 3 meses, sin días llenos | 40 citas; ~1.500 en 6 meses | Samuel Saenz |
+| 33 | 2026-10-26 | Rango de fechas desde/hasta, por defecto últimas 4 semanas + próximo mes, que filtra todos los gráficos | Horizonte en meses | Samuel Saenz |
+| 34 | 2026-10-26 | Filtro cruzado solo por servicio, con el gráfico de servicios arriba y botón "Limpiar filtros" | Filtrar también por día u hora | Samuel Saenz |
+| 35 | 2026-10-26 | KPIs nuevos: ticket promedio y tasa de cancelación | Mantener los KPIs anteriores | Samuel Saenz |
+| 36 | 2026-10-26 | Registrar la iteración como sub-issue (#20) de US-03 en lugar de reabrir #12 | Reabrir #12 | Samuel Saenz |
 
 ---
 
@@ -149,6 +162,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 2026-10-26 | `pytest -q` (US-01 B) | 59/59 OK | 19 tests nuevos en `test_payments.py` (Luhn, marcas, errores de tarjeta, pago obligatorio, tarjeta rechazada sin cita, precio pagado fijo, tarjeta guardada, una por cliente, sesión requerida); 7 tests existentes adaptados al pago obligatorio |
 | 2026-10-26 | `pytest -q` (fix/seguridad) | 66/66 OK | 7 tests nuevos: 4 casos de política de contraseña, login sin validar reglas, escape en el admin (estático) y `esc()` ejecutado con Node.js (se omite si no hay Node). El test de H-23 falla con la versión de `main` sin arreglo |
 | 2026-10-26 | `pytest -q` (US-03) | 78/78 OK | 12 tests nuevos en `test_forecast.py`: recta de tendencia, turnos bloqueados, demanda constante repartida por día, tendencia creciente, canceladas excluidas, ingresos con precio pagado, horizonte y días cerrados, reservas ya tomadas, sin histórico, sugerencias, token y rango de meses. `seed_history.py` verificado en BD temporal: 0 solapes, 0 domingos, idempotente |
+| 2026-10-26 | `pytest -q` (#20) | 86/86 OK | `test_forecast.py` reescrito (21 tests): rango con datos reales y previsión, valores por defecto, validaciones (hasta < desde, límite de reservas, > 1 año, servicio inexistente), filtro por servicio, base de la ocupación por hora, KPIs de ticket y cancelación, clasificación relativa |
 
 ## 7. Pruebas manuales (QA)
 
@@ -186,5 +200,12 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | QA-30 | 2026-10-26 | Contraseña débil | Registrarse con `clavesegura` | Indica que falta mayúscula y número | ✅ Como se esperaba | Samuel Saenz | PR #18 |
 | QA-31 | 2026-10-26 | Contraseña válida | Registrarse con `Clave2026` | Cuenta creada | ✅ Como se esperaba | Samuel Saenz | PR #18 |
 | QA-32 | 2026-10-26 | Cuenta anterior a la política | Iniciar sesión con la cuenta previa | Inicia sesión sin aplicar reglas | ✅ Como se esperaba | Samuel Saenz | PR #18 |
+| QA-33 | 2026-10-26 | US-03: vista por defecto | Entrar al admin | Se abre la pestaña Reservas | ✅ Como se esperaba | Samuel Saenz | PR #19 |
+| QA-34 | 2026-10-26 | US-03: Ver Estadísticas | Abrir la pestaña | KPIs, sugerencias y 4 gráficos con el tema oscuro | ✅ Como se esperaba | Samuel Saenz | PR #19 |
+| QA-35 | 2026-10-26 | US-03: detalle de gráficos | Pasar el mouse sobre los gráficos | Aparece el detalle | ✅ Como se esperaba | Samuel Saenz | PR #19 |
+| QA-36 | 2026-10-26 | US-03: horizonte | Cambiar de 1 a 3 meses | Se extiende el gráfico y cambian los KPIs | ✅ Funciona; observación: el gráfico semanal mantiene todo el histórico (H-25) | Samuel Saenz | PR #19 |
+| QA-37 | 2026-10-26 | US-03: colores por demanda | Revisar el gráfico por día | Viernes/sábados en ámbar, lunes en gris | ✅ Como se esperaba | Samuel Saenz | PR #19 |
+| QA-38 | 2026-10-26 | US-03: volver a Reservas | Tocar Reservas | Todo como antes | ✅ Funciona; observación: la tabla no tiene límite de alto (H-24) | Samuel Saenz | PR #19 |
+| QA-39 | 2026-10-26 | US-03: reservas futuras del histórico | Revisar el calendario público | Menos horarios libres las próximas semanas | ✅ Funciona; observación: el histórico es excesivo (H-26) | Samuel Saenz | PR #19 |
 
 > Nota QA-04: la reserva exitosa se hizo en otro horario (27-10 15:00), no como continuación directa de QA-03; la secuencia "error → corregir teléfono → confirmar mismo horario" no quedó registrada por separado.
