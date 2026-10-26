@@ -14,6 +14,9 @@ from app.utils import PhoneError, local_now, normalize_pa_phone
 
 client = TestClient(app)
 
+# Desde US-01 toda reserva lleva pago (simulado). Tarjeta de prueba aprobada.
+PAYMENT = {"card": {"number": "4242 4242 4242 4242", "exp_month": 12, "exp_year": 2030, "cvv": "123"}}
+
 
 def _next_open_day_at(hour: int):
     d = (local_now() + timedelta(days=1)).replace(hour=hour, minute=0, second=0, microsecond=0)
@@ -56,6 +59,7 @@ def test_create_and_conflict():
         "customer_phone": "+507 6876 5432",
         "service_id": sid,
         "start_at": start.isoformat(),
+        "payment": PAYMENT,
     }
     r = client.post("/api/appointments", json=payload)
     assert r.status_code == 201, r.text
@@ -80,6 +84,7 @@ def test_availability_removes_booked_slot():
             "customer_phone": "61234567",
             "service_id": sid,
             "start_at": day.isoformat(),
+            "payment": PAYMENT,
         },
     )
     after = client.get(f"/api/availability?service_id={sid}&date={date_str}").json()
@@ -96,6 +101,7 @@ def test_reject_invalid_phone_on_booking():
             "customer_phone": "123",
             "service_id": sid,
             "start_at": start.isoformat(),
+            "payment": PAYMENT,
         },
     )
     assert r.status_code == 422  # falla validación de teléfono
@@ -110,6 +116,7 @@ def test_reject_chilean_phone_on_booking():
             "customer_phone": "+56 9 4291 6570",
             "service_id": sid,
             "start_at": _next_open_day_at(14).isoformat(),
+            "payment": PAYMENT,
         },
     )
     assert r.status_code == 422
@@ -179,7 +186,8 @@ def test_month_full_day():
     start = _next_open_day_at(10)  # 10:00-18:00 bloquea todos los inicios posibles
     r = client.post(
         "/api/appointments",
-        json={"customer_name": "Ana", "customer_phone": "61234567", "service_id": sid, "start_at": start.isoformat()},
+        json={"customer_name": "Ana", "customer_phone": "61234567", "service_id": sid, "start_at": start.isoformat(),
+              "payment": PAYMENT},
     )
     assert r.status_code == 201, r.text
     entry = _month_days(sid, start.date())[start.date().isoformat()]
@@ -202,6 +210,7 @@ def test_booking_horizon():
             "customer_phone": "61234567",
             "service_id": sid,
             "start_at": f"{beyond.isoformat()}T11:00:00",
+            "payment": PAYMENT,
         },
     )
     assert r.status_code == 409
