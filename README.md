@@ -15,7 +15,7 @@ Backend en **Python (FastAPI)** con base de datos **SQL**, API REST **documentad
 - **Recordatorios por WhatsApp**: envío automático (programado) X horas antes de la cita, además de confirmación al reservar.
 - **Panel de administración**: estadísticas, gestión de reservas (confirmar / cancelar / realizar / eliminar) y de servicios (crear / activar / eliminar), protegido por token.
 - **API REST documentada**: Swagger UI interactivo en `/docs`.
-- **Validación de datos**: teléfonos chilenos normalizados a formato E.164, horarios de atención y días cerrados configurables.
+- **Validación de datos**: celulares de Panamá (+507) normalizados a formato E.164, precios en USD con centavos, horarios de atención y días cerrados configurables.
 - **Listo para desplegar**: Dockerfile, blueprint de Render y configuración por variables de entorno (SQLite en local → PostgreSQL en producción).
 
 ---

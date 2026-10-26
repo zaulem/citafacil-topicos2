@@ -24,7 +24,7 @@ class Service(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(120), nullable=False)
     duration_min = Column(Integer, nullable=False, default=30)
-    price = Column(Integer, nullable=False, default=0)  # CLP, entero
+    price_cents = Column(Integer, nullable=False, default=0)  # USD en centavos (1250 = $12.50)
     active = Column(Boolean, nullable=False, default=True)
 
     appointments = relationship("Appointment", back_populates="service")
@@ -37,7 +37,7 @@ class Appointment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     customer_name = Column(String(120), nullable=False)
-    customer_phone = Column(String(20), nullable=False)   # E.164: +569XXXXXXXX
+    customer_phone = Column(String(20), nullable=False)   # E.164: +5076XXXXXXX
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
     start_at = Column(DateTime, nullable=False, index=True)  # hora local (naive)
     end_at = Column(DateTime, nullable=False)

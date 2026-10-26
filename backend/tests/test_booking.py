@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app import models  # noqa: E402
 from app.database import Base, SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
-from app.utils import PhoneError, local_now, normalize_cl_phone  # noqa: E402
+from app.utils import PhoneError, local_now, normalize_pa_phone  # noqa: E402
 
 client = TestClient(app)
 
@@ -27,7 +27,7 @@ def fresh_db():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
-    db.add(models.Service(name="Corte", duration_min=30, price=8000, active=True))
+    db.add(models.Service(name="Corte", duration_min=30, price_cents=1250, active=True))
     db.commit()
     db.close()
     yield
@@ -43,15 +43,27 @@ def _next_open_day_at(hour: int):
 
 # ---------- Validación de teléfono ----------
 def test_phone_valid_formats():
-    assert normalize_cl_phone("+56 9 4291 6570") == "+56942916570"
-    assert normalize_cl_phone("942916570") == "+56942916570"
-    assert normalize_cl_phone("56942916570") == "+56942916570"
-    assert normalize_cl_phone("4291 6570") == "+56942916570"  # 8 dígitos -> antepone 9
+    assert normalize_pa_phone("+507 6123 4567") == "+50761234567"
+    assert normalize_pa_phone("50761234567") == "+50761234567"
+    assert normalize_pa_phone("0050761234567") == "+50761234567"  # prefijo internacional 00
+    assert normalize_pa_phone("6123-4567") == "+50761234567"
+    assert normalize_pa_phone("61234567") == "+50761234567"
 
 
-def test_phone_invalid():
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "12345",            # muy corto
+        "+507 2123 4567",   # fijo (no empieza por 6)
+        "+507 6123 456",    # 7 dígitos
+        "+507 6123 45678",  # 9 dígitos
+        "+56 9 4291 6570",  # celular chileno
+        "",
+    ],
+)
+def test_phone_invalid(raw):
     with pytest.raises(PhoneError):
-        normalize_cl_phone("12345")
+        normalize_pa_phone(raw)
 
 
 # ---------- Reservas ----------
@@ -60,7 +72,7 @@ def test_create_and_conflict():
     start = _next_open_day_at(11)
     payload = {
         "customer_name": "Camila",
-        "customer_phone": "+56 9 8765 4321",
+        "customer_phone": "+507 6876 5432",
         "service_id": sid,
         "start_at": start.isoformat(),
     }
@@ -84,7 +96,7 @@ def test_availability_removes_booked_slot():
         "/api/appointments",
         json={
             "customer_name": "Ana",
-            "customer_phone": "942916570",
+            "customer_phone": "61234567",
             "service_id": sid,
             "start_at": day.isoformat(),
         },
@@ -106,6 +118,42 @@ def test_reject_invalid_phone_on_booking():
         },
     )
     assert r.status_code == 422  # falla validación de teléfono
+
+
+def test_reject_chilean_phone_on_booking():
+    sid = client.get("/api/services").json()[0]["id"]
+    r = client.post(
+        "/api/appointments",
+        json={
+            "customer_name": "Tel Chile",
+            "customer_phone": "+56 9 4291 6570",
+            "service_id": sid,
+            "start_at": _next_open_day_at(14).isoformat(),
+        },
+    )
+    assert r.status_code == 422
+    assert "panameño" in r.json()["detail"][0]["msg"]
+
+
+# ---------- Localización ----------
+def test_config_panama():
+    cfg = client.get("/api/config").json()
+    assert cfg["timezone"] == "America/Panama"
+    assert cfg["currency"] == "USD"
+
+
+def test_price_in_cents():
+    svc = client.get("/api/services").json()[0]
+    assert svc["price_cents"] == 1250
+    assert "price" not in svc
+
+    r = client.post(
+        "/api/admin/services",
+        headers={"X-Admin-Token": "test-token"},
+        json={"name": "Barba", "duration_min": 20, "price_cents": 650},
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["price_cents"] == 650
 
 
 # ---------- Administración ----------

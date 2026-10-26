@@ -144,7 +144,7 @@
       <p class="hint">Para confirmarte la reserva por WhatsApp.</p>
       <div class="summary" id="summary"></div>
       <div class="field"><label for="name">Nombre y apellido</label><input id="name" placeholder="Ej: Camila Rojas" autocomplete="name" /></div>
-      <div class="field"><label for="phone">Celular (WhatsApp)</label><input id="phone" placeholder="+56 9 XXXX XXXX" inputmode="tel" autocomplete="tel" /></div>
+      <div class="field"><label for="phone">Celular (WhatsApp)</label><input id="phone" placeholder="+507 6XXX XXXX" inputmode="tel" autocomplete="tel" /></div>
       <div class="field"><label for="notes">Nota (opcional)</label><input id="notes" placeholder="Algo que debamos saber" /></div>
       <button class="btn" id="confirmBtn"><i class="fa-solid fa-check"></i> Confirmar reserva</button>
       <div class="msg" id="formMsg"></div>
@@ -186,7 +186,8 @@
     if (v){ localStorage.setItem("citafacil_api", v.trim()); location.reload(); }
   }
 
-  const money = n => "$" + (n||0).toLocaleString("es-CL");
+  // Los precios llegan en centavos de USD (1250 -> "$12.50").
+  const money = cents => "$" + ((cents||0)/100).toLocaleString("es-PA",{minimumFractionDigits:2, maximumFractionDigits:2});
 
   // FastAPI devuelve `detail` como texto o, en errores de validación (422), como
   // lista de objetos {msg, loc...}: lo convertimos siempre en un mensaje legible.
@@ -271,7 +272,7 @@
     state.services.forEach(s=>{
       const el = document.createElement("div");
       el.className = "svc";
-      el.innerHTML = `<div class="n">${s.name}</div><div class="meta"><span><i class="fa-regular fa-clock"></i> ${s.duration_min} min</span><span class="price">${money(s.price)}</span></div>`;
+      el.innerHTML = `<div class="n">${s.name}</div><div class="meta"><span><i class="fa-regular fa-clock"></i> ${s.duration_min} min</span><span class="price">${money(s.price_cents)}</span></div>`;
       el.onclick = ()=>selectService(s, el);
       g.appendChild(el);
     });
@@ -289,7 +290,7 @@
     state.service = s; clearTime();
     document.querySelectorAll(".svc").forEach(x=>x.classList.remove("sel"));
     el.classList.add("sel");
-    $("whenHint").textContent = `${s.name} · ${s.duration_min} min · ${money(s.price)}`;
+    $("whenHint").textContent = `${s.name} · ${s.duration_min} min · ${money(s.price_cents)}`;
     setStep(2);
     if($("dateInput").value) loadSlots();
     $("cardWhen").scrollIntoView({behavior:"smooth", block:"center"});
@@ -339,8 +340,8 @@
     document.querySelectorAll(".slot").forEach(x=>x.classList.remove("sel"));
     b.classList.add("sel");
     const d = new Date(state.date+"T"+t);
-    const fecha = d.toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"long"});
-    $("summary").innerHTML = `<b>${state.service.name}</b> · ${fecha} a las <b>${t}</b> · ${money(state.service.price)}`;
+    const fecha = d.toLocaleDateString("es-PA",{weekday:"long",day:"2-digit",month:"long"});
+    $("summary").innerHTML = `<b>${state.service.name}</b> · ${fecha} a las <b>${t}</b> · ${money(state.service.price_cents)}`;
     setStep(3);
     $("cardWho").scrollIntoView({behavior:"smooth", block:"center"});
   }
@@ -356,7 +357,7 @@
         start_at:`${state.date}T${state.time}:00`, notes:$("notes").value.trim()};
       await api("/api/appointments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}, 65000);
       const d=new Date(state.date+"T"+state.time);
-      const fecha=d.toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"long"});
+      const fecha=d.toLocaleDateString("es-PA",{weekday:"long",day:"2-digit",month:"long"});
       $("doneMsg").innerHTML=`Te esperamos el <b>${fecha}</b> a las <b>${state.time}</b>.<br>Te enviamos la confirmación por WhatsApp a ${phone}.`;
       ["cardSvc","cardWhen","cardWho"].forEach(id=>$(id).style.display="none");
       document.querySelector(".steps").style.display="none";
