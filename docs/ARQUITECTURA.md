@@ -63,7 +63,7 @@ frontend/admin.html  ──┼── fetch → FastAPI ────┼─ router
 
 - Reemplazar la validación chilena por la panameña: `+507` más 8 dígitos, celular que empieza por 6, guardado en E.164.
 - `.env` y valores por defecto: `America/Panama` (corrige H-13) y moneda USD.
-- **Por decidir:** precios en dólares enteros o con centavos.
+- **Decidido:** precios en USD con centavos (p. ej. 12.50).
 
 ### US-05 · Mis reservas (propia)
 > Como cliente registrado, quiero ver y cancelar mis reservas desde mi cuenta, para gestionar cambios sin tener que llamar al negocio.
