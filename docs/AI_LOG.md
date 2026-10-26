@@ -37,12 +37,12 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | H-02 | 2026-10-25 | Bug (original) | Los tests usan `sqlite:////tmp/...`; en Windows `C:\tmp` no existe → 6 tests en error | `pytest` línea base | `tempfile.gettempdir()` en `backend/tests/test_booking.py` | Resuelto (PR #1) |
 | H-03 | 2026-10-25 | Configuración | El frontend apuntaba siempre a la API de producción en Render | Revisión de código | Usa `http://localhost:8000` si se abre en local | Resuelto (PR #2) |
 | H-04 | 2026-10-25 | Bug (original) | `seed.py` falla en consolas Windows (cp1252) al imprimir "✔"; solo se guardan los servicios | Ejecución de `seed.py` | Ejecutar con `PYTHONUTF8=1` (es idempotente). No se cambia código | Workaround |
-| H-05 | 2026-10-25 | Bug (original) | Al volver a elegir fecha o servicio se borra la hora pero el resumen sigue visible; al confirmar sale "Elige servicio, día y hora" | Prueba manual con Live Server | `clearTime()` limpia el resumen y vuelve al paso 2 | Resuelto (PR `fix/formulario-reserva`) |
-| H-06 | 2026-10-25 | Bug (original) | Los errores 422 de FastAPI traen `detail` como lista; el frontend lo trataba como texto | Revisión de código + llamada directa a la API | Se convierte la lista en mensaje legible (público y admin) | Resuelto (PR `fix/formulario-reserva`) |
+| H-05 | 2026-10-25 | Bug (original) | Al volver a elegir fecha o servicio se borra la hora pero el resumen sigue visible; al confirmar sale "Elige servicio, día y hora" | Prueba manual con Live Server | `clearTime()` limpia el resumen y vuelve al paso 2 | Resuelto (PR #4) |
+| H-06 | 2026-10-25 | Bug (original) | Los errores 422 de FastAPI traen `detail` como lista; el frontend lo trataba como texto | Revisión de código + llamada directa a la API | Se convierte la lista en mensaje legible (público y admin) | Resuelto (PR #4) |
 | H-07 | 2026-10-25 | Limitación funcional | Solo se aceptan celulares chilenos (+56); un número de Panamá (+507) es rechazado | Prueba con número real del equipo | Se propone como historia de usuario adicional | Pendiente |
-| H-08 | 2026-10-25 | Código muerto | `e.message === "Error 409"` nunca se cumple porque el backend envía un `detail` propio | Revisión de código | Se eliminó al corregir H-10 (ahora se usa `e.status`) | Resuelto (PR `fix/formulario-reserva`) |
+| H-08 | 2026-10-25 | Código muerto | `e.message === "Error 409"` nunca se cumple porque el backend envía un `detail` propio | Revisión de código | Se eliminó al corregir H-10 (ahora se usa `e.status`) | Resuelto (PR #4) |
 | H-09 | 2026-10-25 | Entorno | Live Server recarga la página ante cualquier cambio del workspace (p. ej. `citafacil.db` al reservar) | Análisis preventivo de la IA | Solo se documenta; no se configura nada (la IA lo configuró sin pedirlo y se revirtió, ver Cambios rechazados #2) | Informativo |
-| H-10 | 2026-10-25 | Regresión (IA) | El arreglo de H-05 provocó que, ante cualquier error al confirmar (p. ej. teléfono inválido), se recargaran los horarios y se perdiera la hora elegida | Prueba manual de QA (Samuel Saenz) con número +507 | Recargar horarios solo en 409 (horario tomado); en validación se conserva la selección | Resuelto (PR `fix/formulario-reserva`) |
+| H-10 | 2026-10-25 | Regresión (IA) | El arreglo de H-05 provocó que, ante cualquier error al confirmar (p. ej. teléfono inválido), se recargaran los horarios y se perdiera la hora elegida | Prueba manual de QA (Samuel Saenz) con número +507 | Recargar horarios solo en 409 (horario tomado); en validación se conserva la selección | Resuelto (PR #4) |
 
 ---
 
@@ -84,3 +84,15 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 |---|---|---|---|
 | 2026-10-25 | `pytest -v` (antes de PR #1) | 0/6 (6 errores) | H-02 |
 | 2026-10-25 | `pytest -v` (después de PR #1) | 6/6 OK | Python 3.12.10 |
+| 2026-10-25 | `pytest -q` (main tras PR #3 y #4) | 6/6 OK | Sin regresiones en backend |
+
+## 7. Pruebas manuales (QA)
+
+| # | Fecha | Escenario | Pasos | Resultado esperado | Resultado obtenido | QA | Ref. |
+|---|---|---|---|---|---|---|---|
+| QA-01 | 2026-10-25 | Línea base: reserva con celular de Panamá | Elegir servicio, fecha y hora; celular `+50763211144`; confirmar | Mensaje de error claro | ❌ "Elige servicio, día y hora." con el resumen aún visible | Samuel Saenz | H-05, H-07 |
+| QA-02 | 2026-10-25 | Error de validación tras arreglo inicial de H-05/H-06 | Igual que QA-01 | Mensaje claro y se conserva la hora | ⚠️ Mensaje claro, pero se perdió la hora y el formulario quedó desactivado | Samuel Saenz | H-10 |
+| QA-03 | 2026-10-25 | Error de validación tras arreglo de H-10 | Lunes 26-10, 11:30, Corte de pelo; celular `+50763211144`; confirmar | Mensaje claro y se conserva la hora | ✅ "Número de celular chileno inválido…"; resumen y hora conservados | Samuel Saenz | PR #4 |
+| QA-04 | 2026-10-25 | Reserva exitosa visible en el panel admin | Reserva con celular `+56 9 1234 5678`; revisar `admin.html` | Reserva creada en estado Pendiente | ✅ Martes 27-10, 15:00, Corte de pelo, Pendiente, teléfono normalizado `+56912345678` | Samuel Saenz | PR #4 |
+
+> Nota QA-04: la reserva exitosa se hizo en otro horario (27-10 15:00), no como continuación directa de QA-03; la secuencia "error → corregir teléfono → confirmar mismo horario" no quedó registrada por separado.
