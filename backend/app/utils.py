@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from .config import settings
@@ -30,6 +30,11 @@ def normalize_pa_phone(raw: str) -> str:
             "Número de celular panameño inválido. Usa el formato +507 6XXX XXXX."
         )
     return "+507" + digits
+
+
+def utc_now() -> datetime:
+    """Hora actual en UTC (naive), para vencimientos de sesión y bloqueos."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def local_now() -> datetime:

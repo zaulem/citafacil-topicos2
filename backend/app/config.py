@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # --- Seguridad ---
     admin_token: str = "cambia-este-token-admin"
     cors_origins: str = "*"      # separado por comas, o "*" para todos
+    # Cuentas de cliente (US-01)
+    session_days: int = 7          # duración de una sesión iniciada
+    login_max_attempts: int = 5    # intentos fallidos antes de bloquear
+    login_lock_minutes: int = 15   # duración del bloqueo
 
     # --- Twilio / WhatsApp ---
     twilio_account_sid: str = ""
