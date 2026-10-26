@@ -24,6 +24,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 5 | 2026-10-25 | Código | Claude Code | Hacer que el frontend use el backend local | Detección automática de entorno local; producción por defecto | Aceptada | H-03, PR #2 |
 | 6 | 2026-10-25 | Debug | Claude Code | Analizar error "Elige servicio, día y hora" visto al probar | Encontró 2 bugs del original (resumen desincronizado, errores 422 ilegibles) y la restricción de teléfonos chilenos | Corregir bugs ahora; el teléfono se convierte en historia de usuario | H-05, H-06, H-07 |
 | 7 | 2026-10-25 | Configuración | Claude Code | Pregunta: ¿está bien usar Live Server? | Respondió y además creó `.vscode/settings.json` sin que se lo pidieran | Rechazado: se eliminó el archivo y se fijó la regla de confirmar antes de cualquier cambio | H-09 |
+| 8 | 2026-10-25 | Debug | Claude Code | Analizar captura de QA: tras error de teléfono el formulario queda desactivado | Identificó que su propio arreglo de H-05 borraba la hora en cualquier error; propuso recargar horarios solo en 409 | Aceptado tras confirmación | H-10 |
 
 ---
 
@@ -39,8 +40,9 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | H-05 | 2026-10-25 | Bug (original) | Al volver a elegir fecha o servicio se borra la hora pero el resumen sigue visible; al confirmar sale "Elige servicio, día y hora" | Prueba manual con Live Server | `clearTime()` limpia el resumen y vuelve al paso 2 | Resuelto (PR `fix/formulario-reserva`) |
 | H-06 | 2026-10-25 | Bug (original) | Los errores 422 de FastAPI traen `detail` como lista; el frontend lo trataba como texto | Revisión de código + llamada directa a la API | Se convierte la lista en mensaje legible (público y admin) | Resuelto (PR `fix/formulario-reserva`) |
 | H-07 | 2026-10-25 | Limitación funcional | Solo se aceptan celulares chilenos (+56); un número de Panamá (+507) es rechazado | Prueba con número real del equipo | Se propone como historia de usuario adicional | Pendiente |
-| H-08 | 2026-10-25 | Código muerto | `e.message === "Error 409"` nunca se cumple porque el backend envía un `detail` propio | Revisión de código | Sin cambio: el mensaje del backend ya es correcto | Aceptado |
+| H-08 | 2026-10-25 | Código muerto | `e.message === "Error 409"` nunca se cumple porque el backend envía un `detail` propio | Revisión de código | Se eliminó al corregir H-10 (ahora se usa `e.status`) | Resuelto (PR `fix/formulario-reserva`) |
 | H-09 | 2026-10-25 | Entorno | Live Server recarga la página ante cualquier cambio del workspace (p. ej. `citafacil.db` al reservar) | Análisis preventivo de la IA | Solo se documenta; no se configura nada (la IA lo configuró sin pedirlo y se revirtió, ver Cambios rechazados #2) | Informativo |
+| H-10 | 2026-10-25 | Regresión (IA) | El arreglo de H-05 provocó que, ante cualquier error al confirmar (p. ej. teléfono inválido), se recargaran los horarios y se perdiera la hora elegida | Prueba manual de QA (Samuel Saenz) con número +507 | Recargar horarios solo en 409 (horario tomado); en validación se conserva la selección | Resuelto (PR `fix/formulario-reserva`) |
 
 ---
 
@@ -50,6 +52,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 |---|---|---|---|---|
 | 1 | 2026-10-25 | Intentó `git push` asumiendo que había credenciales disponibles | El agente no tenía sesión de GitHub; el push falló | Push manual por el usuario (H-00) |
 | 2 | 2026-10-25 | Intentó instalar dependencias en Python 3.13 sin verificar compatibilidad con las versiones fijadas | El proyecto fija Python 3.12 (`render.yaml`); dos paquetes no tienen binarios para 3.13 | Se instaló Python 3.12 (H-01) |
+| 3 | 2026-10-25 | Corrigió H-05 haciendo que `loadSlots()` borrara la hora, sin revisar que el `catch` del botón Confirmar también llamaba a `loadSlots()` | Efecto secundario: tras un error de validación se perdía la hora elegida. La IA solo validó sintaxis, no el flujo en el navegador | Detectado por QA manual; corregido en H-10 |
 
 ---
 
