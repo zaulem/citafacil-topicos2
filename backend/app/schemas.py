@@ -208,59 +208,91 @@ class MonthAvailabilityOut(BaseModel):
     days: list[DayAvailabilityOut]
 
 
-# ---------- Previsión de demanda (US-03, #20) ----------
-class ForecastKpis(BaseModel):
-    real_appointments: int = Field(..., description="Citas reales (días pasados del rango)")
-    expected_appointments: float = Field(..., description="Citas previstas (desde hoy hasta el fin del rango)")
-    booked_appointments: int = Field(..., description="Citas ya reservadas (desde hoy)")
-    revenue_cents: int = Field(..., description="Ingresos reales + previstos")
-    occupancy_pct: float
-    avg_ticket_cents: int
-    cancellation_rate_pct: float
-    trend_pct_per_week: float
-
-
-class ForecastWeek(BaseModel):
-    week_start: str
-    real: int
-    expected: float
-    booked: int
-
-
-class ForecastDay(BaseModel):
-    date: str
-    kind: str = Field(..., description="real (día pasado) | forecast (desde hoy)")
-    real: Optional[int] = None
-    expected: Optional[float] = None
-    booked: Optional[int] = None
-    occupancy_pct: float
-    booked_occupancy_pct: Optional[float] = None
-
-
-class WeekdayOccupancy(BaseModel):
-    weekday: str
-    real_occupancy_pct: Optional[float] = None
-    expected_occupancy_pct: Optional[float] = None
-    occupancy_pct: Optional[float] = Field(None, description="La usada para clasificar: prevista si hay días futuros; si no, real")
+# ---------- Estadísticas reales y previsión (US-03, #20, H-28) ----------
+class Occupancy(BaseModel):
+    occupancy_pct: Optional[float] = None
     level: str = Field(..., description="high | low | normal, comparado con el promedio del negocio")
 
 
-class HourOccupancy(BaseModel):
+class WeekdayOccupancy(Occupancy):
+    weekday: str
+
+
+class HourOccupancy(Occupancy):
     hour: str
-    occupancy_pct: float
-    level: str = Field(..., description="high | low | normal, comparado con el promedio")
 
 
 class ServiceRevenue(BaseModel):
     service_id: int
     service: str
-    appointments: int
+    appointments: int = Field(..., description="Citas registradas (realizadas + reservadas)")
     revenue_cents: int
 
 
 class Suggestion(BaseModel):
     level: str = Field(..., description="high | low | info")
     text: str
+
+
+class RealKpis(BaseModel):
+    total: int = Field(..., description="Todas las citas del rango, incluidas las canceladas")
+    registered: int = Field(..., description="Citas no canceladas (= realizadas + reservadas)")
+    done: int = Field(..., description="Registradas en días pasados")
+    booked: int = Field(..., description="Registradas desde hoy (reservas futuras)")
+    cancelled: int
+    cancellation_rate_pct: float = Field(..., description="Canceladas / total")
+    revenue_cents: int = Field(..., description="Cobrado: realizadas + reservadas (el pago es por adelantado)")
+    avg_ticket_cents: int
+    occupancy_pct: float
+
+
+class RealWeek(BaseModel):
+    week_start: str
+    done: int
+    booked: int
+    cancelled: int
+
+
+class RealSection(BaseModel):
+    basis: str = Field(..., description="done | booked: qué citas miden la ocupación")
+    kpis: RealKpis
+    weekly: list[RealWeek]
+    by_weekday: list[WeekdayOccupancy]
+    by_hour: list[HourOccupancy]
+    by_service: list[ServiceRevenue]
+    suggestions: list[Suggestion]
+
+
+class ForecastKpis(BaseModel):
+    expected: float = Field(..., description="Citas estimadas desde hoy hasta el fin del rango (incluye las reservadas)")
+    booked: int = Field(..., description="Ya reservadas en esos días")
+    additional: float = Field(..., description="Estimadas que aún no se han reservado")
+    additional_revenue_cents: int
+    occupancy_pct: float
+    trend_pct_per_week: float
+
+
+class ForecastWeek(BaseModel):
+    week_start: str
+    expected: float
+    booked: int
+    additional: float
+
+
+class ForecastDay(BaseModel):
+    date: str
+    expected: float
+    booked: int
+    occupancy_pct: float
+
+
+class ForecastSection(BaseModel):
+    available: bool = Field(..., description="False si el rango termina antes de hoy")
+    kpis: ForecastKpis
+    weekly: list[ForecastWeek]
+    daily: list[ForecastDay]
+    by_weekday: list[WeekdayOccupancy]
+    suggestions: list[Suggestion]
 
 
 class ServiceRef(BaseModel):
@@ -274,14 +306,8 @@ class ForecastOut(BaseModel):
     today: str
     max_date: str = Field(..., description="Último día que se puede consultar (límite de reservas)")
     service: Optional[ServiceRef] = None
-    hour_basis: str = Field(..., description="real | booked: qué citas usa la ocupación por hora")
-    kpis: ForecastKpis
-    weekly: list[ForecastWeek]
-    daily: list[ForecastDay]
-    by_weekday: list[WeekdayOccupancy]
-    by_hour: list[HourOccupancy]
-    by_service: list[ServiceRevenue]
-    suggestions: list[Suggestion]
+    real: RealSection
+    forecast: ForecastSection
 
 
 # ---------- Otros ----------
