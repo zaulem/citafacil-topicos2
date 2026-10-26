@@ -96,6 +96,14 @@
   .chip button{background:none;border:none;color:inherit;cursor:pointer;font-size:.9rem}
   .h-hint{color:var(--muted);font-size:.8rem;font-weight:500}
   .chart-box.short{height:220px}
+  .switch{display:inline-flex;align-items:center;gap:8px;font-size:.86rem;font-weight:700;color:var(--text);cursor:pointer;margin:0}
+  .switch input{width:auto;accent-color:var(--accent-2);transform:scale(1.2)}
+  .fc-badge{display:inline-flex;align-items:center;gap:7px;border:1.5px dashed var(--accent-2);color:var(--accent-2);border-radius:999px;padding:5px 12px;font-size:.8rem;font-weight:700}
+  .fc-title{color:var(--accent-2);font-size:.85rem;font-weight:700;margin:-8px 0 10px;display:flex;gap:8px;align-items:center}
+  .stats.fc .stat{border:1.5px dashed rgba(34,211,238,.55);background:rgba(34,211,238,.04)}
+  .stats.fc .stat .v{color:var(--accent-2)}
+  .sugg li.fc{border-style:dashed}
+  .sugg li.sugg-sep{background:none;border:none;padding:6px 0 0;color:var(--accent-2);font-weight:700;font-size:.82rem}
   .sugg-btn{background:rgba(245,158,11,.15);color:var(--warn);border:1px solid rgba(245,158,11,.55);box-shadow:none}
   .sugg-btn .count{background:var(--warn);color:#111;border-radius:999px;padding:0 7px;font-size:.75rem}
   .flash{animation:flash 1.6s ease-out}
@@ -195,14 +203,20 @@
           </div>
           <span class="chip hide" id="fcChip"></span>
           <button type="button" class="btn ghost sm" id="fcClear"><i class="fa-solid fa-filter-circle-xmark"></i> Limpiar filtros</button>
+          <label class="switch"><input type="checkbox" id="fcToggle" /> <span>Mostrar previsión</span></label>
+          <span class="fc-badge hide" id="fcBadge"><i class="fa-solid fa-wand-magic-sparkles"></i> Mostrando previsión (estimada)</span>
           <button type="button" class="btn sm sugg-btn" id="fcSuggBtn"><i class="fa-solid fa-lightbulb"></i> Sugerencias <span class="count" id="fcSuggCount">0</span></button>
         </div>
         <p class="fc-note" id="fcNote"></p>
         <div class="stats" id="fcKpis"></div>
+        <div id="fcForecastBlock" class="hide">
+          <p class="fc-title"><i class="fa-solid fa-wand-magic-sparkles"></i> Previsión · estimación basada en las últimas 8 semanas — no son citas reservadas</p>
+          <div class="stats fc" id="fcKpisForecast"></div>
+        </div>
         <div class="charts">
           <div class="card"><h2><i class="fa-solid fa-scissors"></i> Citas por servicio <span class="h-hint">· clic para filtrar</span></h2><div class="chart-box short"><canvas id="chServiceCount"></canvas></div></div>
           <div class="card"><h2><i class="fa-solid fa-sack-dollar"></i> Ingresos por servicio <span class="h-hint">· clic para filtrar</span></h2><div class="chart-box short"><canvas id="chServiceRevenue"></canvas></div></div>
-          <div class="card wide"><h2><i class="fa-solid fa-chart-column"></i> Demanda semanal: real y previsión</h2><div class="chart-box"><canvas id="chWeekly"></canvas></div></div>
+          <div class="card wide"><h2><i class="fa-solid fa-chart-column"></i> Citas por semana</h2><div class="chart-box"><canvas id="chWeekly"></canvas></div></div>
           <div class="card"><h2><i class="fa-solid fa-calendar-week"></i> Ocupación por día de la semana</h2><div class="chart-box"><canvas id="chWeekday"></canvas></div></div>
           <div class="card"><h2><i class="fa-solid fa-clock"></i> <span id="hourTitle">Ocupación por hora</span></h2><div class="chart-box"><canvas id="chHour"></canvas></div></div>
         </div>
@@ -469,10 +483,24 @@
   // El backend clasifica días y horas contra el promedio del negocio (high | low | normal).
   const LEVEL_COLOR = {high: COLORS.warn, low: COLORS.muted, normal: COLORS.accent2};
 
+  // H-28: los datos reales y la previsión nunca se mezclan. La previsión solo se dibuja con
+  // "Mostrar previsión" activado, con estilo propio (borde punteado, sin relleno, "(estimado)")
+  // y en una fila de KPIs aparte: los KPIs reales no cambian nunca.
+  let fcData = null;
+  const showFc = () => $("fcToggle").checked;
+  $("fcToggle").onchange = ()=>{ if(fcData) renderForecast(fcData); };
+  const ESTIMATED = {borderColor: COLORS.accent2, backgroundColor: "rgba(34,211,238,.06)", borderWidth: 2, borderDash: [5, 4]};
+
+  function stat(value, label, sub, cls){
+    return `<div class="stat ${cls || ""}"><div class="v">${value}</div><div class="k">${label}</div>${sub ? `<div class="s">${sub}</div>` : ""}</div>`;
+  }
+
   function renderForecast(f){
+    fcData = f;
     fcToday = f.today;
     $("fcStart").max = f.max_date;
     $("fcEnd").max = f.max_date;
+    const r = f.real, fc = f.forecast, on = showFc();
 
     const chip = $("fcChip");
     chip.classList.toggle("hide", !f.service);
@@ -481,27 +509,45 @@
       $("chipName").textContent = f.service.name;
       chip.querySelector("button").onclick = ()=>setService(f.service.id);
     }
-    $("fcNote").textContent = `Del ${fmtDMY(f.start)} al ${fmtDMY(f.end)} · días pasados: datos reales · desde hoy: previsión `
-      + `(modelo: últimas 8 semanas)` + (f.service ? ` · la ocupación indica qué parte de la agenda usa «${f.service.name}»` : "");
+    $("fcBadge").classList.toggle("hide", !on);
+    $("fcNote").textContent = `Del ${fmtDMY(f.start)} al ${fmtDMY(f.end)} · datos reales: citas realizadas y reservadas`
+      + (f.service ? ` · la ocupación indica qué parte de la agenda usa «${f.service.name}»` : "");
 
-    const k = f.kpis, t = k.trend_pct_per_week;
-    const total = Math.round(k.real_appointments + k.expected_appointments);
-    $("fcKpis").innerHTML = `
-      <div class="stat acc"><div class="v">${total}</div><div class="k">Citas</div><div class="s">${k.real_appointments} reales · ${Math.round(k.expected_appointments)} previstas</div></div>
-      <div class="stat"><div class="v">${money(k.revenue_cents)}</div><div class="k">Ingresos</div><div class="s">reales + previstos</div></div>
-      <div class="stat"><div class="v">${Math.round(k.occupancy_pct)} %</div><div class="k">Ocupación</div><div class="s">${k.booked_appointments} ya reservadas</div></div>
-      <div class="stat"><div class="v">${money(k.avg_ticket_cents)}</div><div class="k">Ticket promedio</div></div>
-      <div class="stat ${k.cancellation_rate_pct >= 15 ? "warn" : ""}"><div class="v">${k.cancellation_rate_pct} %</div><div class="k">Cancelación</div><div class="s">días pasados del rango</div></div>
-      <div class="stat ${t >= 0 ? "ok" : "warn"}"><div class="v">${t > 0 ? "+" : ""}${t} %</div><div class="k">Tendencia semanal</div></div>`;
-    $("fcSugg").innerHTML = f.suggestions.map(s => `<li class="${esc(s.level)}">${esc(s.text)}</li>`).join("");
-    $("fcSuggCount").textContent = f.suggestions.length;
+    // KPIs reales: cuadran con la pestaña Reservas (registradas + canceladas = total).
+    const k = r.kpis;
+    $("fcKpis").innerHTML =
+      stat(k.total, "Total reservas", `incluye ${k.cancelled} canceladas`) +
+      stat(k.registered, "Citas registradas", `${k.done} realizadas · ${k.booked} reservadas`, "acc") +
+      stat(k.cancelled, "Canceladas", `${k.cancellation_rate_pct} % del total`, k.cancellation_rate_pct >= 15 ? "warn" : "") +
+      stat(money(k.revenue_cents), "Ingresos cobrados", "realizadas + reservadas (prepagadas)") +
+      stat(money(k.avg_ticket_cents), "Ticket promedio") +
+      stat(`${Math.round(k.occupancy_pct)} %`, "Ocupación", r.basis === "done" ? "días pasados del rango" : "reservas ya tomadas");
+
+    // KPIs de la previsión: fila aparte, solo con el interruptor activado.
+    $("fcForecastBlock").classList.toggle("hide", !on);
+    if(on){
+      const p = fc.kpis, t = p.trend_pct_per_week;
+      $("fcKpisForecast").innerHTML = !fc.available
+        ? '<p class="fc-note" style="margin:0">El rango termina antes de hoy: no hay días que prever.</p>'
+        : stat(Math.round(p.expected), "Citas estimadas", `de hoy al ${fmtDM(f.end)} (incluye reservadas)`) +
+          stat(p.booked, "Ya reservadas", "existen en la agenda") +
+          stat(Math.round(p.additional), "Estimadas adicionales", "aún sin reservar") +
+          stat(money(p.additional_revenue_cents), "Ingresos estimados", "de las adicionales") +
+          stat(`${Math.round(p.occupancy_pct)} %`, "Ocupación prevista") +
+          stat(`${t > 0 ? "+" : ""}${t} %`, "Tendencia semanal", "últimas 8 semanas");
+    }
+
+    // Sugerencias: las reales siempre; las de previsión, aparte y solo con el interruptor.
+    const li = (s, extra) => `<li class="${esc(s.level)} ${extra || ""}">${esc(s.text)}</li>`;
+    $("fcSugg").innerHTML = r.suggestions.map(s => li(s)).join("")
+      + (on ? '<li class="sugg-sep">Previsión (estimada)</li>' + fc.suggestions.map(s => li(s, "fc")).join("") : "");
+    $("fcSuggCount").textContent = r.suggestions.length + (on ? fc.suggestions.length : 0);
 
     fcCharts.forEach(c => c.destroy());
     fcCharts = [];
 
-    // 1) Servicios: citas e ingresos (reales + ya reservadas). Ambos activan el filtro cruzado:
-    //    el servicio elegido se resalta y los demás se atenúan.
-    const sv = f.by_service;
+    // 1) Servicios (citas registradas e ingresos cobrados). Ambos activan el filtro cruzado.
+    const sv = r.by_service;
     const svColors = sv.map(x => !fcService || x.service_id === fcService ? COLORS.accent2 : DIM);
     const serviceChart = (canvas, label, values, axis, fmt) => new Chart($(canvas), {
       type: "bar",
@@ -511,57 +557,50 @@
         interaction: {mode: "nearest", axis: "y", intersect: false},
         onClick: (evt, els) => { if(els.length) setService(sv[els[0].index].service_id); },
         onHover: (evt, els) => { evt.native.target.style.cursor = els.length ? "pointer" : "default"; },
-        plugins: {legend: {display: false}, tooltip: {callbacks: {label: i => fmt(sv[i.dataIndex]) + " (reales + reservadas)"}}},
+        plugins: {legend: {display: false}, tooltip: {callbacks: {label: i => fmt(sv[i.dataIndex])}}},
         scales: {x: {beginAtZero: true, title: {display: true, text: axis}}},
       }),
     });
-    fcCharts.push(serviceChart("chServiceCount", "Citas", sv.map(x => x.appointments), "Citas",
-                               x => `${x.appointments} citas`));
-    fcCharts.push(serviceChart("chServiceRevenue", "Ingresos", sv.map(x => x.revenue_cents / 100), "USD",
-                               x => money(x.revenue_cents)));
+    fcCharts.push(serviceChart("chServiceCount", "Citas", sv.map(x => x.appointments), "Citas registradas",
+                               x => `${x.appointments} citas registradas (realizadas + reservadas)`));
+    fcCharts.push(serviceChart("chServiceRevenue", "Ingresos", sv.map(x => x.revenue_cents / 100), "USD cobrados",
+                               x => `${money(x.revenue_cents)} cobrados`));
 
-    // 2) Demanda semanal: real (pasado) y prevista (desde hoy) apiladas; línea con lo ya reservado.
-    const w = f.weekly;
+    // 2) Citas por semana: realizadas + reservadas (reales); con previsión, las estimadas
+    //    adicionales se apilan encima con borde punteado y sin relleno.
+    const weeks = r.weekly.map(x => x.week_start);
+    const extra = Object.fromEntries(fc.weekly.map(x => [x.week_start, x.additional]));
+    const weeklySets = [
+      {label: "Realizadas", data: r.weekly.map(x => x.done), backgroundColor: COLORS.accent, stack: "c"},
+      {label: "Reservadas", data: r.weekly.map(x => x.booked), backgroundColor: COLORS.ok, stack: "c"},
+    ];
+    if(on) weeklySets.push(Object.assign({label: "Adicionales (estimado)", data: weeks.map(w => extra[w] ?? null), stack: "c"}, ESTIMATED));
     fcCharts.push(new Chart($("chWeekly"), {
-      data: {
-        labels: w.map(x => fmtDM(x.week_start)),
-        datasets: [
-          {type: "bar", label: "Real", data: w.map(x => x.real), backgroundColor: COLORS.accent, stack: "d"},
-          {type: "bar", label: "Previsión", data: w.map(x => x.expected), backgroundColor: "rgba(34,211,238,.45)",
-           borderColor: COLORS.accent2, borderWidth: 1, stack: "d"},
-          {type: "line", label: "Ya reservado", data: w.map(x => x.booked), borderColor: COLORS.ok,
-           backgroundColor: COLORS.ok, tension: .3, pointRadius: 3},
-        ],
-      },
+      type: "bar",
+      data: {labels: weeks.map(fmtDM), datasets: weeklySets},
       options: chartOptions("Citas por semana", {
         scales: {x: {stacked: true}, y: {stacked: true, beginAtZero: true, title: {display: true, text: "Citas por semana"}}},
         plugins: {tooltip: {callbacks: {title: i => "Semana del " + i[0].label}}},
       }),
     }));
 
-    // 3) Ocupación por día de la semana: real vs. prevista (ámbar = mayor demanda, gris = menor).
-    const wd = f.by_weekday;
+    // 3) Ocupación por día de la semana: real (ámbar = mayor demanda, gris = menor);
+    //    con previsión, una segunda barra punteada "(estimado)".
+    const wdSets = [{label: "Real", data: r.by_weekday.map(x => x.occupancy_pct), backgroundColor: r.by_weekday.map(x => LEVEL_COLOR[x.level])}];
+    if(on) wdSets.push(Object.assign({label: "Prevista (estimado)", data: fc.by_weekday.map(x => x.occupancy_pct)}, ESTIMATED));
     fcCharts.push(new Chart($("chWeekday"), {
       type: "bar",
-      data: {
-        labels: wd.map(x => x.weekday),
-        datasets: [
-          {label: "Real", data: wd.map(x => x.real_occupancy_pct), backgroundColor: "rgba(59,130,246,.45)"},
-          {label: "Prevista", data: wd.map(x => x.expected_occupancy_pct),
-           backgroundColor: wd.map(x => LEVEL_COLOR[x.level])},
-        ],
-      },
+      data: {labels: r.by_weekday.map(x => x.weekday), datasets: wdSets},
       options: chartOptions("", {scales: pctScale}),
     }));
 
-    // 4) Ocupación por hora: con días pasados en el rango usa citas reales; si no, las ya reservadas.
-    $("hourTitle").textContent = "Ocupación por hora " + (f.hour_basis === "real" ? "(citas reales del periodo)" : "(reservas ya tomadas)");
+    // 4) Ocupación por hora (solo real).
+    $("hourTitle").textContent = "Ocupación por hora " + (r.basis === "done" ? "(citas realizadas)" : "(reservas ya tomadas)");
     fcCharts.push(new Chart($("chHour"), {
       type: "bar",
       data: {
-        labels: f.by_hour.map(x => x.hour),
-        datasets: [{label: "Ocupación", data: f.by_hour.map(x => x.occupancy_pct),
-                    backgroundColor: f.by_hour.map(x => LEVEL_COLOR[x.level])}],
+        labels: r.by_hour.map(x => x.hour),
+        datasets: [{label: "Ocupación", data: r.by_hour.map(x => x.occupancy_pct), backgroundColor: r.by_hour.map(x => LEVEL_COLOR[x.level])}],
       },
       options: chartOptions("", {scales: pctScale, plugins: {legend: {display: false}}}),
     }));
