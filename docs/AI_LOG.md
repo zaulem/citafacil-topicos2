@@ -29,7 +29,8 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 10 | 2026-10-25 | Código | Claude Code | Eliminar el router del videojuego (H-11) | Borró `scores.py` y sus referencias; 6/6 tests OK; `/api/scores` ya no aparece en las rutas | Aceptado | H-11 |
 | 11 | 2026-10-25 | Código / Testing | Claude Code | Implementar US-04 (#8) según plan aprobado: teléfonos +507, `America/Panama`, USD en centavos | Cambios en backend, frontend, seed y config; tests de 6 a 14. Un test falló por el `.env` local con valores de Chile | Aceptado; la IA corrigió el `.env` local con autorización | H-07, H-13, H-16, H-17 |
 | 12 | 2026-10-25 | Testing | Claude Code | Aislar los tests del `.env` local (H-18, opción B) | Reprodujo el fallo simulando la configuración de otro integrante (3/14 fallaban) y fijó la configuración en los tests: 14/14 en ambos casos | Aceptado | H-18 |
-| 13 | 2026-10-25 | Código / Testing | Claude Code | Implementar US-02 (#9) según plan aprobado: calendario mensual propio, nº de horarios libres por día, aviso de pocos cupos y límite de 3 meses | Endpoint mensual, calendario en JS puro (sin librerías) y 9 tests nuevos (23/23). Un primer intento de edición del HTML falló por un error de comillas del shell y no modificó nada; se rehízo con la herramienta de edición | Aceptado; pendiente QA manual | H-12 |
+| 13 | 2026-10-25 | Código / Testing | Claude Code | Implementar US-02 (#9) según plan aprobado: calendario mensual propio, nº de horarios libres por día, aviso de pocos cupos y límite de 3 meses | Endpoint mensual, calendario en JS puro (sin librerías) y 9 tests nuevos (23/23). Un primer intento de edición del HTML falló por un error de comillas del shell y no modificó nada; se rehízo con la herramienta de edición | Aceptado; QA aprobado (QA-09 a QA-13), PR #15 | H-12 |
+| 14 | 2026-10-26 | Código / Testing | Claude Code | Implementar US-01 parte A (#10): cuentas de cliente con correo y contraseña, solo biblioteca estándar | Registro, login con bloqueo tras 5 intentos, logout, `/api/me`, reservas asociadas al cliente y frontend con ventana de acceso; 17 tests nuevos (40/40). Detectó el riesgo H-19 al separar los tests y lo resolvió con `conftest.py`. Evitó insertar el nombre del cliente como HTML | Aceptado; pendiente QA manual | H-19, H-20, H-21 |
 
 ---
 
@@ -49,13 +50,16 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | H-09 | 2026-10-25 | Entorno | Live Server recarga la página ante cualquier cambio del workspace (p. ej. `citafacil.db` al reservar) | Análisis preventivo de la IA | Solo se documenta; no se configura nada (la IA lo configuró sin pedirlo y se revirtió, ver Cambios rechazados #2) | Informativo |
 | H-10 | 2026-10-25 | Regresión (IA) | El arreglo de H-05 provocó que, ante cualquier error al confirmar (p. ej. teléfono inválido), se recargaran los horarios y se perdiera la hora elegida | Prueba manual de QA (Samuel Saenz) con número +507 | Recargar horarios solo en 409 (horario tomado); en validación se conserva la selección | Resuelto (PR #4) |
 | H-11 | 2026-10-25 | Código ajeno | `routers/scores.py` es el ranking del videojuego "ÚLTIMA RONDA 3D" del autor original: no tiene relación con reservas y su POST es público sin autenticación | Análisis de arquitectura | Se eliminó `routers/scores.py`, su registro y la mención en la descripción de la API (`main.py`); la tabla `game_scores` desaparece al recrear la BD local | Resuelto (rama `chore/eliminar-router-juego`) |
-| H-12 | 2026-10-25 | Bug (original) | La fecha mínima del frontend usa `toISOString()` (UTC): en Panamá, desde las 19:00 "hoy" pasa a ser mañana y no se puede reservar para el mismo día | Análisis de arquitectura | Endpoint `/api/availability/month` devuelve `today` calculado en la zona del negocio; el frontend ya no usa `toISOString()` | Resuelto (US-02, rama `feature/US-02-calendario`) |
+| H-12 | 2026-10-25 | Bug (original) | La fecha mínima del frontend usa `toISOString()` (UTC): en Panamá, desde las 19:00 "hoy" pasa a ser mañana y no se puede reservar para el mismo día | Análisis de arquitectura | Endpoint `/api/availability/month` devuelve `today` calculado en la zona del negocio; el frontend ya no usa `toISOString()` | Resuelto (US-02, PR #15) |
 | H-13 | 2026-10-25 | Configuración | El backend calcula "ahora" con la zona `America/Santiago` (UTC-3), 2 h adelante de Panamá: oculta horarios aún válidos | Análisis de arquitectura | `America/Panama` en US-04 | Resuelto (US-04, PR #13) |
 | H-14 | 2026-10-25 | Arquitectura | No hay migraciones: `create_all()` crea tablas nuevas pero no agrega columnas a las existentes | Análisis de arquitectura | Al cambiar el modelo, borrar `backend/citafacil.db` y volver a ejecutar `seed.py` (sin Alembic) | Aceptado |
 | H-15 | 2026-10-25 | Diseño de datos | La cita no guarda el precio cobrado: si cambia el precio del servicio, cambia el histórico de ingresos | Análisis de arquitectura | Guardar `price_paid` en la cita (US-01) para usarlo en US-03 | Pendiente |
 | H-16 | 2026-10-25 | Código muerto | `format_cl_phone` no se usaba en ningún lugar del proyecto | Plan de US-04 | Eliminada junto con la validación chilena | Resuelto (US-04, PR #13) |
 | H-17 | 2026-10-25 | Configuración | El `backend/.env` local (no versionado) tenía `America/Santiago` y `CLP` y tiene prioridad sobre el código: la app seguía como Chile | Plan de US-04; confirmado por el test `test_config_panama`, que falló | Se actualizó el `.env` local; cada integrante debe actualizar el suyo (ver ARQUITECTURA.md §5) | Resuelto (local) |
 | H-18 | 2026-10-25 | Testing | Los tests leen el `.env` del desarrollador: el resultado de `test_config_panama` depende de la configuración local de cada integrante | Fallo de `test_config_panama` | Opción B: los tests fijan zona horaria, moneda, horario y días cerrados con variables de entorno | Resuelto (rama `test/aislar-config`) |
+| H-19 | 2026-10-26 | Testing (riesgo) | La configuración de prueba (BD temporal) estaba dentro de `test_booking.py`. Un segundo archivo de tests que importara la app antes habría usado la BD real del `.env`, y el fixture `drop_all` la habría borrado | Al planificar `test_accounts.py` | Se movió la configuración y el fixture a `tests/conftest.py`, que pytest carga antes que cualquier test | Resuelto (US-01 A) |
+| H-20 | 2026-10-26 | Limitación conocida | No se verifica que el correo pertenezca al cliente: la app no envía correos | Decisión de diseño de US-01 | Documentado; fuera del alcance de esta versión | Aceptado |
+| H-21 | 2026-10-26 | Deuda técnica (original) | `Appointment.created_at` usa `datetime.utcnow`, obsoleto en Python 3.12 (genera advertencias en los tests) | Advertencias de pytest | Las tablas nuevas usan `utc_now()`; la del código original se deja igual por ahora | Pendiente (menor) |
 
 ---
 
@@ -103,6 +107,11 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 15 | 2026-10-25 | Calendario propio en JavaScript puro | FullCalendar (librería por CDN) | Samuel Saenz |
 | 16 | 2026-10-25 | Mostrar en cada día el número de horarios libres y resaltar "pocos cupos" (3 o menos) con color ámbar, sin emojis | No mostrar el número | Samuel Saenz |
 | 17 | 2026-10-25 | Reservas hasta 3 meses adelante, validado también en el backend (`BOOKING_HORIZON_MONTHS=3`) | Sin límite | Samuel Saenz |
+| 18 | 2026-10-26 | Dividir US-01 en 2 PRs: A (cuentas) y B (pago y tarjeta guardada) | Un solo PR | Samuel Saenz |
+| 19 | 2026-10-26 | Se puede seguir reservando como invitado, sin cuenta | Exigir registro | Samuel Saenz |
+| 20 | 2026-10-26 | Una sola tarjeta guardada por cliente (guardar otra reemplaza la anterior) | Varias tarjetas | Samuel Saenz |
+| 21 | 2026-10-26 | Mostrar en el panel admin si la cita está pagada (columna "Pago", PR B) | No mostrarlo | Samuel Saenz |
+| 22 | 2026-10-26 | Aceptar como limitación que el correo no se verifica (H-20) | Enviar correo de verificación | Samuel Saenz |
 
 ---
 
@@ -119,6 +128,7 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | 2026-10-25 | `pytest -q` con config de otro integrante (`CLOSED_WEEKDAYS=5,6`, `OPEN_HOUR=12`, Santiago, CLP) | 11/14 | Reproduce H-18: fallan `test_create_and_conflict`, `test_availability_removes_booked_slot` y `test_config_panama` |
 | 2026-10-25 | `pytest -q` misma config, tras aislar los tests | 14/14 OK | H-18 resuelto; también 14/14 con la config normal |
 | 2026-10-25 | `pytest -q` (US-02) | 23/23 OK | 9 tests nuevos: estados del mes, día lleno, coherencia con horarios del día, límite de 3 meses, `today` en zona del negocio (H-12), mes inválido y servicio inexistente |
+| 2026-10-26 | `pytest -q` (US-01 A) | 40/40 OK | 17 tests nuevos en `test_accounts.py`: hash de contraseña, registro (válido, duplicado, inválidos), login, mismo mensaje para correo inexistente y contraseña incorrecta, bloqueo y desbloqueo, logout, sesión vencida, reserva con sesión, como invitado y con token falso |
 
 ## 7. Pruebas manuales (QA)
 
@@ -132,5 +142,10 @@ Este documento se actualiza en cada PR. Solo se registran los prompts que afecta
 | QA-06 | 2026-10-25 | US-04: reserva con celular de Panamá | Reservar con `+507 6321 1144` | Reserva creada | ✅ Reserva creada | Samuel Saenz | PR #13 |
 | QA-07 | 2026-10-25 | US-04: rechazo de celular chileno | Reservar con `+56 9 1234 5678` | Mensaje sobre el formato panameño | ✅ Rechazado con mensaje claro | Samuel Saenz | PR #13 |
 | QA-08 | 2026-10-25 | US-04: crear servicio con centavos en el panel admin | Crear servicio de $9.75 | Se guarda y se muestra $9.75 | ✅ Se muestra $9.75 | Samuel Saenz | PR #13 |
+| QA-09 | 2026-10-25 | US-02: calendario del mes actual | Elegir *Corte de pelo* | Octubre 2026 con nº de horarios libres, domingo 25 tachado y ‹ desactivada | ✅ Como se esperaba | Samuel Saenz | PR #15 |
+| QA-10 | 2026-10-25 | US-02: límite de 3 meses | Avanzar con › | Llega a enero 2027, días tras el 25 atenuados y › desactivada | ✅ Como se esperaba | Samuel Saenz | PR #15 |
+| QA-11 | 2026-10-25 | US-02: reservar descuenta horarios | Reservar y recargar | El día muestra un horario menos | ✅ Verificado con las reservas del 27-10 | Samuel Saenz | PR #15 |
+| QA-12 | 2026-10-25 | US-02: pocos cupos | Servicio *Jornada* (480 min); reservar *Corte de pelo* 10:00 y 10:30 el 27-10; elegir *Jornada* | El 27 muestra 3 en ámbar | ✅ 3 en ámbar (captura) | Samuel Saenz | PR #15 |
+| QA-13 | 2026-10-25 | US-02: día lleno | Con *Jornada*, reservar el 27-10 a las 12:00 | El 27 pasa a "lleno" en rojo | ✅ Confirmado por el QA | Samuel Saenz | PR #15 |
 
 > Nota QA-04: la reserva exitosa se hizo en otro horario (27-10 15:00), no como continuación directa de QA-03; la secuencia "error → corregir teléfono → confirmar mismo horario" no quedó registrada por separado.

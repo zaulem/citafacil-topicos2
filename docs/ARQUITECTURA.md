@@ -38,9 +38,12 @@ frontend/admin.html  ──┼── fetch → FastAPI ────┼─ router
 ## 3. Historias de usuario e impacto
 
 ### US-01 · Reservar con datos de pago guardados (obligatoria)
+
+Se divide en dos PRs: **A** (cuentas de cliente) y **B** (pago simulado y tarjeta guardada).
 > Como usuario recurrente, quiero reservar directamente usando mis datos guardados, para no tener que rellenar el formulario de pago en cada compra.
 
 - **Backend:** tablas `Customer` (correo, hash de contraseña, nombre, celular), `CustomerSession` (token con vencimiento) y `PaymentMethod` (solo marca, últimos 4 dígitos, vencimiento y token simulado; **nunca el número completo**). `Appointment` recibe `customer_id`, `price_paid` y `payment_status`. Endpoints de registro, login, perfil y tarjeta, y pago simulado al reservar.
+- **Sesiones:** token aleatorio entregado al cliente; en la BD solo se guarda su SHA-256. Cabecera `Authorization: Bearer <token>`, vigencia de 7 días.
 - **Seguridad (solo biblioteca estándar):** `hashlib.scrypt` con sal por usuario, `secrets.token_urlsafe` para sesiones, bloqueo temporal tras 5 intentos fallidos y contraseña de mínimo 8 caracteres. El correo se valida con `email-validator`, que ya instala FastAPI.
 - **Limitación conocida:** el correo no se verifica (no se envían correos).
 - **Frontend:** registro e inicio de sesión; paso de pago con la opción "usar mi tarjeta •••• 4242".
