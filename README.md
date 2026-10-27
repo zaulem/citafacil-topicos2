@@ -1,178 +1,219 @@
-# 📅 CitaFácil — Sistema de reservas con recordatorios por WhatsApp
+# 📅 CitaFácil — Sistema de reservas web (Proyecto 1 · Tópicos Especiales II)
 
-Aplicación **full-stack** para que pequeños negocios (barberías, peluquerías, clínicas, consultoras…) reciban reservas en línea y envíen **recordatorios automáticos por WhatsApp**.
+[![Tests](https://github.com/zaulem/citafacil-topicos2/actions/workflows/tests.yml/badge.svg)](https://github.com/zaulem/citafacil-topicos2/actions/workflows/tests.yml)
 
-Backend en **Python (FastAPI)** con base de datos **SQL**, API REST **documentada (Swagger)** e integración real con **Twilio**. Frontend liviano en **HTML/CSS/JS**: una página pública de reservas y un panel de administración.
+Sistema de reservas para una barbería en **Panamá**: los clientes reservan y pagan en línea, gestionan sus citas desde su cuenta, y el administrador ve estadísticas reales y una previsión de la demanda.
 
-> Proyecto de portafolio creado por **Giancarlos Alfaro** ([gianca675.github.io](https://gianca675.github.io)).
+Este repositorio parte de **[CitaFácil](https://github.com/gianca675/citafacil)**, de Giancarlos Alfaro, y lo extiende como *Feature Sprint* con desarrollo asistido por IA (Claude Code) para el **Proyecto 1 de Tópicos Especiales II** (Prof. Regis Rivera).
+
+- 📒 **Bitácora de IA, hallazgos, decisiones y QA:** [`docs/AI_LOG.md`](docs/AI_LOG.md)
+- 🧭 **Análisis de arquitectura y decisiones de diseño:** [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
+
+---
+
+## ✅ Historias de usuario implementadas
+
+| Historia | Issue | Qué se puede hacer |
+|---|---|---|
+| **US-01** · Reservar con datos de pago guardados *(obligatoria)* | #10 | Cuenta con correo y contraseña; pago simulado obligatorio; tarjeta guardada para pagar con un clic |
+| **US-02** · Calendario dinámico *(obligatoria)* | #9 | Calendario mensual con días disponibles, con pocos cupos, llenos y cerrados; reservas hasta 3 meses adelante |
+| **US-03** · Previsión de demanda *(obligatoria)* | #12, #20 | Panel "Ver Estadísticas" con datos reales y, al activar **"Mostrar previsión"**, la previsión de demanda y sugerencias de precio e inventario |
+| **US-04** · Celulares y localización de Panamá *(propia)* | #8 | Celulares +507, zona horaria `America/Panama`, precios en USD con centavos |
+| **US-05** · Mis reservas *(propia)* | #11 | Ver, cancelar (con reembolso) y reprogramar las reservas propias |
 
 ---
 
 ## ✨ Características
 
-- **Reserva en 3 pasos**: el cliente elige servicio → día → hora libre, y deja su nombre y celular.
-- **Sin choques de horario**: el motor de disponibilidad calcula los espacios libres según la duración de cada servicio y **evita el doble-booking**.
-- **Recordatorios por WhatsApp**: envío automático (programado) X horas antes de la cita, además de confirmación al reservar.
-- **Panel de administración**: estadísticas, gestión de reservas (confirmar / cancelar / realizar / eliminar) y de servicios (crear / activar / eliminar), protegido por token.
-- **API REST documentada**: Swagger UI interactivo en `/docs`.
-- **Validación de datos**: celulares de Panamá (+507) normalizados a formato E.164, precios en USD con centavos, horarios de atención y días cerrados configurables.
-- **Listo para desplegar**: Dockerfile, blueprint de Render y configuración por variables de entorno (SQLite en local → PostgreSQL en producción).
+**Página pública** (`frontend/index.html`)
+- Reserva en 3 pasos: servicio → día en el **calendario** → hora libre.
+- **Pago simulado** obligatorio, con validación de tarjeta: regla de Luhn, marca, vencimiento y CVV.
+- **Cuenta de cliente:** registro e inicio de sesión. Con sesión, los datos se precargan y la tarjeta guardada permite pagar con un clic.
+- **Mis reservas:** contadores (total, programadas, completadas, canceladas), filtro por estado, **cancelar con reembolso** y **reprogramar** hasta 24 h antes.
+
+**Panel de administración** (`frontend/admin.html`, protegido por token)
+- **Reservas:** tabla con desplazamiento propio, filtros, columna de pago (pagado o reembolsado) y acciones válidas según el estado de cada cita.
+- **Servicios:** crear, activar o desactivar y eliminar.
+- **Ver Estadísticas:**
+  - Rango de fechas y filtro cruzado por servicio (clic en un gráfico).
+  - KPIs que cuadran con la pestaña Reservas.
+  - Gráficos con Chart.js.
+  - Interruptor **"Mostrar previsión"**: la estimación aparece separada y con estilo punteado, sin mezclarse con los datos reales.
+
+**Reglas de negocio**
+- Estados de una cita: Pendiente → Confirmada → Realizada; cualquiera de las dos primeras puede pasar a Cancelada. **Realizada y Cancelada son finales.**
+- Sin doble reserva: la disponibilidad tiene en cuenta la duración de cada servicio.
+- Recordatorios por WhatsApp con Twilio. Sin credenciales funciona en **modo demo** (los mensajes se registran en el log).
 
 ---
 
 ## 🧱 Stack técnico
 
-| Capa        | Tecnología |
-|-------------|------------|
-| Backend     | Python 3, FastAPI, SQLAlchemy, Pydantic |
+| Capa | Tecnología |
+|---|---|
+| Backend | Python **3.12**, FastAPI, SQLAlchemy, Pydantic, APScheduler |
+| Seguridad | `hashlib.scrypt` (contraseñas), `secrets` (sesiones), solo biblioteca estándar |
 | Base de datos | SQLite (local) · PostgreSQL (producción) |
-| Notificaciones | Twilio API (WhatsApp) |
-| Tareas programadas | APScheduler |
-| Frontend    | HTML5, CSS3, JavaScript (sin framework) |
-| Tests       | pytest |
-| Despliegue  | Docker · Render |
-
----
-
-## 🚀 Demo
-
-- **Reservas (frontend):** _añade aquí tu URL de GitHub Pages_
-- **Panel admin:** `.../admin.html`
-- **API + documentación:** _añade aquí tu URL de Render_ `/docs`
+| Frontend | HTML, CSS y JavaScript sin framework · Chart.js 4.4.1 (CDN) |
+| Tests | pytest (108 tests) · GitHub Actions (CI) |
+| Despliegue | Docker · Render |
 
 ---
 
 ## 📂 Estructura
 
 ```
-citafacil/
+├── .github/workflows/tests.yml   # CI: ejecuta los tests en cada push y Pull Request
 ├── backend/
 │   ├── app/
-│   │   ├── main.py           # App FastAPI, CORS, programador de recordatorios
-│   │   ├── config.py         # Configuración por variables de entorno
-│   │   ├── database.py       # Conexión SQLAlchemy (SQLite/PostgreSQL)
-│   │   ├── models.py         # Modelos: Service, Appointment
-│   │   ├── schemas.py        # Esquemas Pydantic (validación)
-│   │   ├── crud.py           # Operaciones de base de datos
-│   │   ├── availability.py   # Motor de horarios + anti doble-booking
-│   │   ├── notifications.py  # Envío de WhatsApp (Twilio)
-│   │   ├── reminders.py      # Recordatorios automáticos
-│   │   ├── auth.py           # Autenticación del panel admin
-│   │   └── routers/          # Endpoints (público / admin)
-│   ├── tests/                # Pruebas con pytest
-│   ├── seed.py               # Datos de ejemplo (barbería)
+│   │   ├── main.py               # App FastAPI, CORS, programador de recordatorios
+│   │   ├── config.py             # Configuración por variables de entorno
+│   │   ├── models.py             # Servicio, Cita, Cliente, Sesión, Tarjeta + reglas de estado
+│   │   ├── schemas.py            # Validación (Pydantic)
+│   │   ├── crud.py               # Operaciones de base de datos
+│   │   ├── availability.py       # Horarios libres, calendario mensual, anti doble reserva
+│   │   ├── payments.py           # Pago simulado y validación de tarjetas
+│   │   ├── forecast.py           # Estadísticas reales y previsión de demanda
+│   │   ├── auth.py               # Token de admin, contraseñas y sesiones de cliente
+│   │   ├── notifications.py      # WhatsApp (Twilio o modo demo)
+│   │   ├── reminders.py          # Recordatorios automáticos
+│   │   └── routers/              # public · accounts (cuentas y mis reservas) · admin
+│   ├── tests/                    # 108 tests (conftest.py fija la configuración de prueba)
+│   ├── seed.py                   # Servicios y citas de ejemplo
+│   ├── seed_history.py           # ~300 citas en 3 meses para "Ver Estadísticas"
 │   ├── requirements.txt
-│   ├── Dockerfile
 │   └── .env.example
 ├── frontend/
-│   ├── index.html            # Página pública de reservas
-│   └── admin.html            # Panel de administración
-├── render.yaml               # Despliegue en Render (API + PostgreSQL)
-└── README.md
+│   ├── index.html                # Página pública: reservar y mis reservas
+│   └── admin.html                # Panel de administración
+└── docs/
+    ├── AI_LOG.md                 # Bitácora de IA (entregable)
+    └── ARQUITECTURA.md           # Análisis y decisiones de diseño
 ```
 
 ---
 
-## 🖥️ Ejecutar en local
+## 🖥️ Ejecutar en local (Windows · PowerShell)
 
-Requisitos: Python 3.10+.
+Requisito: **Python 3.12**. Las versiones fijadas en `requirements.txt` no se instalan en Python 3.13; está documentado como hallazgo H-01.
 
-```bash
+```powershell
 cd backend
-python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
+py -3.12 -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
 
-cp .env.example .env          # ajusta ADMIN_TOKEN y lo que quieras
-python seed.py                # carga servicios y citas de ejemplo (opcional)
+copy .env.example .env            # ajusta ADMIN_TOKEN si quieres
+python seed.py                    # servicios y citas de ejemplo
+python seed_history.py            # opcional: histórico para "Ver Estadísticas"
 python -m uvicorn app.main:app --reload
 ```
 
-- API y documentación: <http://localhost:8000/docs>
-- Frontend: abre `frontend/index.html` en el navegador (usa `http://localhost:8000` por defecto).
-  Panel admin en `frontend/admin.html` (ingresa tu `ADMIN_TOKEN`).
+- **API y documentación:** <http://localhost:8000/docs>
+- **Página pública:** abre `frontend/index.html` (doble clic o Live Server). En local usa `http://localhost:8000` automáticamente.
+- **Panel admin:** `frontend/admin.html`, con el `ADMIN_TOKEN` del `.env` (por defecto `cambia-este-token-admin`).
 
-> Sin credenciales de Twilio, la app corre en **modo demo**: los mensajes de WhatsApp se registran en el log en vez de enviarse.
+> **Si cambia el modelo de datos:** el proyecto no usa migraciones (decisión documentada en H-14). Borra `backend/citafacil.db` y vuelve a ejecutar `seed.py` (y `seed_history.py`).
+
+### Datos de prueba
+| Qué | Valor |
+|---|---|
+| Tarjeta aprobada | `4242 4242 4242 4242` · vencimiento futuro (ej. `12/30`) · CVV `123` |
+| Tarjeta rechazada | `4000 0000 0000 0002` |
+| Celular | Panamá: `+507 6XXX XXXX` (8 dígitos que empiezan por 6) |
+| Contraseña al crear cuenta | 8 caracteres o más, con mayúscula, minúscula y número |
 
 ---
 
 ## 🔌 Endpoints principales
 
 | Método | Ruta | Descripción | Auth |
-|--------|------|-------------|------|
-| GET  | `/api/config` | Datos del negocio (nombre, horario) | — |
-| GET  | `/api/services` | Servicios activos | — |
-| GET  | `/api/availability?service_id=&date=` | Horarios libres de un día | — |
-| POST | `/api/appointments` | Crear una reserva | — |
-| GET  | `/api/admin/appointments` | Listar reservas (filtros) | 🔒 |
-| PATCH| `/api/admin/appointments/{id}` | Cambiar estado | 🔒 |
-| DELETE | `/api/admin/appointments/{id}` | Eliminar reserva | 🔒 |
+|---|---|---|---|
+| GET | `/api/services` · `/api/config` | Servicios activos y datos del negocio | — |
+| GET | `/api/availability?service_id=&date=` | Horarios libres de un día | — |
+| GET | `/api/availability/month?service_id=&month=` | Estado de cada día del mes (calendario) | — |
+| POST | `/api/appointments` | Crear una reserva con pago | — / 👤 |
+| POST | `/api/auth/register` · `/login` · `/logout` | Cuenta de cliente | — / 👤 |
+| GET | `/api/me` · `/api/me/card` (PUT, DELETE) | Mis datos y tarjeta guardada | 👤 |
+| GET | `/api/me/appointments` | Mis reservas con contadores | 👤 |
+| POST | `/api/me/appointments/{id}/cancel` · `/reschedule` | Cancelar (reembolso) o reprogramar | 👤 |
+| GET · PATCH · DELETE | `/api/admin/appointments` | Listar, cambiar estado y eliminar | 🔒 |
 | GET/POST/PUT/DELETE | `/api/admin/services` | Gestionar servicios | 🔒 |
-| GET  | `/api/admin/stats` | Estadísticas | 🔒 |
-| POST | `/api/admin/reminders/run` | Enviar recordatorios ahora | 🔒 |
+| GET | `/api/admin/stats` | Contadores de la pestaña Reservas | 🔒 |
+| GET | `/api/admin/forecast?start=&end=&service_id=` | Estadísticas reales y previsión | 🔒 |
 
-🔒 = requiere la cabecera `X-Admin-Token`.
+👤 = sesión de cliente (`Authorization: Bearer <token>`) · 🔒 = cabecera `X-Admin-Token`.
 
 ---
 
 ## ⚙️ Configuración (variables de entorno)
 
 | Variable | Por defecto | Descripción |
-|----------|-------------|-------------|
+|---|---|---|
 | `DATABASE_URL` | `sqlite:///./citafacil.db` | Conexión a la base de datos |
 | `ADMIN_TOKEN` | `cambia-este-token-admin` | Token del panel admin |
-| `CORS_ORIGINS` | `*` | Dominios permitidos del frontend |
 | `BUSINESS_NAME` | `Barbería Don Lucho` | Nombre del negocio |
+| `BUSINESS_TIMEZONE` / `CURRENCY` | `America/Panama` / `USD` | Localización |
 | `OPEN_HOUR` / `CLOSE_HOUR` | `10` / `20` | Horario de atención |
 | `SLOT_INTERVAL_MINUTES` | `30` | Separación entre horarios |
-| `CLOSED_WEEKDAYS` | `6` | Días cerrados (0=lun … 6=dom) |
-| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_WHATSAPP_FROM` | — | Credenciales de Twilio |
-| `REMINDER_HOURS_BEFORE` | `24` | Horas antes para recordar |
-
----
-
-## ☁️ Desplegar en Render (gratis)
-
-1. Sube este proyecto a un repositorio de GitHub.
-2. En [Render](https://render.com): **New + → Blueprint** y conecta el repo. Render leerá `render.yaml` y creará la API + una base de datos PostgreSQL.
-3. Cuando termine, tu API quedará en `https://citafacil-api.onrender.com` (con `/docs`).
-4. Copia esa URL en el frontend: abre la página con `?api=https://tu-api.onrender.com` o usa el enlace **“Configurar API”** del pie de página.
-5. Publica el `frontend/` en GitHub Pages.
-
-El `ADMIN_TOKEN` se genera automáticamente; puedes verlo en **Environment** dentro del panel de Render.
-
----
-
-## 💬 Activar WhatsApp real (Twilio)
-
-1. Crea una cuenta en [twilio.com](https://www.twilio.com) y activa el **WhatsApp Sandbox** (Messaging → Try it out → Send a WhatsApp message).
-2. Copia tu **Account SID**, **Auth Token** y el número del sandbox (`whatsapp:+14155238886`).
-3. Define en Render (o en tu `.env`): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`.
-4. Para recibir mensajes en tu celular, primero únete al sandbox enviando el código que indica Twilio (ej: `join <palabra>`).
-
-Sin estas variables, la app funciona igual en **modo demo** (registra los mensajes en el log).
+| `CLOSED_WEEKDAYS` | `6` | Días cerrados (0 = lunes … 6 = domingo) |
+| `BOOKING_HORIZON_MONTHS` | `3` | Hasta cuántos meses adelante se puede reservar |
+| `CANCEL_MIN_HOURS` | `24` | Hasta cuántas horas antes se puede cancelar o reprogramar |
+| `SESSION_DAYS` | `7` | Duración de la sesión del cliente |
+| `LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCK_MINUTES` | `5` / `15` | Bloqueo tras intentos fallidos |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_WHATSAPP_FROM` | — | WhatsApp real (vacío = modo demo) |
+| `REMINDER_HOURS_BEFORE` | `24` | Horas antes para el recordatorio |
 
 ---
 
 ## 🧪 Tests
 
-```bash
+```powershell
 cd backend
 python -m pytest
 ```
 
-Cubren la validación de teléfono, el cálculo de disponibilidad, la prevención de doble-booking y la autenticación del panel.
+**108 tests:**
+- Reservas y disponibilidad, calendario y límite de 3 meses.
+- Cuentas, sesiones y bloqueo.
+- Pago y tarjeta guardada.
+- Estadísticas, previsión y conciliación con la pestaña Reservas.
+- Mis reservas, reglas de estado entre admin y cliente, y XSS en el panel admin.
+
+Los tests fijan su propia configuración (`tests/conftest.py`), así que no dependen del `.env` de cada integrante. Se ejecutan automáticamente en GitHub Actions en cada push a `main` y en cada Pull Request.
 
 ---
 
-## 🛣️ Posibles mejoras
+## 🤖 Proceso y uso de IA
 
-Notificaciones por correo, soporte multi-sucursal o multi-profesional, pagos en línea, recordatorio configurable por servicio, e internacionalización.
+El desarrollo se hizo con **Claude Code** (Claude Opus) desde VS Code, con el ciclo: Issue → rama → commits → Pull Request → QA manual → merge.
+
+Todo lo relevante está en [`docs/AI_LOG.md`](docs/AI_LOG.md):
+- **AI Development Log:** qué se le pidió a la IA, qué devolvió y qué se decidió.
+- **Hallazgos (H-01 a H-35):** bugs del proyecto original, errores de la IA y limitaciones.
+- **Respuestas incorrectas de la IA**, **cambios rechazados o modificados** y **decisiones humanas**.
+- **Pruebas automatizadas y pruebas manuales de QA.**
 
 ---
 
-## 👤 Autor
+## ⚠️ Limitaciones conocidas
 
-**Giancarlos Alfaro** — Desarrollador de Software
-[Portafolio](https://gianca675.github.io) · [GitHub](https://github.com/gianca675) · [LinkedIn](https://www.linkedin.com/in/giancarlos-alfaro-echeverr%C3%ADa-9ab57b2a8)
+- El **pago es simulado**: no hay pasarela real. Solo se guardan la marca y los últimos 4 dígitos de la tarjeta.
+- **No se verifica** que el correo pertenezca al cliente, porque la app no envía correos (H-20).
+- **Sin migraciones:** al cambiar el modelo hay que recrear la base local (H-14).
+- La **previsión** es una estimación simple: promedio de 8 semanas con tendencia amortiguada. No son citas reservadas.
+
+---
+
+## ☁️ Desplegar en Render
+
+`render.yaml` crea la API y una base PostgreSQL (**New + → Blueprint** en [Render](https://render.com)). Después hay que abrir el frontend con `?api=https://tu-api.onrender.com`, o usar el enlace **"Configurar API"** del pie de página.
+
+---
+
+## 👤 Créditos
+
+- Proyecto original: **Giancarlos Alfaro** ([GitHub](https://github.com/gianca675) · [Portafolio](https://gianca675.github.io)), licencia MIT.
+- Extensión para el Proyecto 1 de Tópicos Especiales II: equipo del curso, con desarrollo asistido por IA.
 
 Licencia MIT.
