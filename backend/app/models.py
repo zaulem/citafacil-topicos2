@@ -75,7 +75,7 @@ class Appointment(Base):
     price_paid_cents = Column(Integer, nullable=True)
     payment_brand = Column(String(20), nullable=True)
     payment_last4 = Column(String(4), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now)  # H-21: utcnow está obsoleto
 
     service = relationship("Service", back_populates="appointments")
     customer = relationship("Customer", back_populates="appointments")

@@ -12,6 +12,7 @@ Es reproducible (semilla fija) y no vuelve a generar si ya hay histórico.
 from __future__ import annotations
 
 import random
+import sys
 from datetime import datetime, time, timedelta
 
 from app import models
@@ -106,4 +107,5 @@ def run() -> None:
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(errors="replace")  # H-04: consolas de Windows (cp1252)
     run()

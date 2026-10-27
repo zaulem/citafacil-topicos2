@@ -4,6 +4,7 @@ Uso:  python seed.py
 """
 from __future__ import annotations
 
+import sys
 from datetime import timedelta
 
 from app import models
@@ -67,4 +68,7 @@ def run() -> None:
 
 
 if __name__ == "__main__":
+    # H-04: en consolas de Windows (cp1252) imprimir "✔" fallaba a mitad de la carga.
+    # Con errors="replace" un símbolo que la consola no soporta se muestra como "?".
+    sys.stdout.reconfigure(errors="replace")
     run()
