@@ -19,6 +19,7 @@ VALID_STATUSES = {STATUS_PENDING, STATUS_CONFIRMED, STATUS_CANCELLED, STATUS_DON
 # Estado del pago de una cita (US-01)
 PAYMENT_UNPAID = "unpaid"
 PAYMENT_PAID = "paid"
+PAYMENT_REFUNDED = "refunded"  # cita cancelada por el cliente dentro del plazo (US-05)
 
 
 class Service(Base):

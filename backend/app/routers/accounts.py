@@ -1,4 +1,5 @@
 """Cuentas de cliente (US-01): registro, inicio/cierre de sesión y datos propios.
+Mis reservas (US-05): ver, cancelar y reprogramar las reservas propias.
 
 Limitación conocida: no se verifica que el correo pertenezca al cliente
 (la app no envía correos).
@@ -13,9 +14,11 @@ from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
 from ..auth import create_session, hash_password, require_session, verify_password
+from ..availability import is_slot_free
 from ..config import settings
 from ..database import get_db
-from ..utils import utc_now
+from ..notifications import cancellation_message, reschedule_message, send_whatsapp
+from ..utils import local_now, utc_now
 
 router = APIRouter(prefix="/api", tags=["Cuentas"])
 
@@ -109,3 +112,86 @@ def delete_card(session: models.CustomerSession = Depends(require_session), db: 
         raise HTTPException(status_code=404, detail="No tienes una tarjeta guardada.")
     crud.delete_card(db, card)
     return {"detail": "Tarjeta eliminada."}
+
+
+# ---------- Mis reservas (US-05) ----------
+def _state(appt: models.Appointment, now) -> str:
+    if appt.status == models.STATUS_CANCELLED:
+        return "cancelled"
+    return "done" if appt.start_at <= now else "scheduled"
+
+
+def _deadline(appt: models.Appointment):
+    return appt.start_at - timedelta(hours=settings.cancel_min_hours)
+
+
+def _my_out(appt: models.Appointment, now) -> schemas.MyAppointmentOut:
+    state = _state(appt, now)
+    return schemas.MyAppointmentOut(
+        **schemas.AppointmentOut.model_validate(appt).model_dump(),
+        state=state,
+        can_change=state == "scheduled" and now <= _deadline(appt),
+        change_deadline=_deadline(appt),
+    )
+
+
+def _own_changeable(db: Session, session: models.CustomerSession, appt_id: int, action: str) -> models.Appointment:
+    """La cita debe ser del cliente (si no, 404: no se revela que existe), estar
+    programada y dentro del plazo de CANCEL_MIN_HOURS antes de la cita."""
+    appt = crud.get_appointment(db, appt_id)
+    if not appt or appt.customer_id != session.customer_id:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+    now = local_now()
+    if _state(appt, now) != "scheduled":
+        raise HTTPException(status_code=409, detail=f"Esta reserva ya no se puede {action}: está cancelada o ya pasó.")
+    if now > _deadline(appt):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Solo se puede {action} hasta {settings.cancel_min_hours} h antes de la cita.",
+        )
+    return appt
+
+
+@router.get("/me/appointments", response_model=schemas.MyAppointmentsOut, summary="Mis reservas")
+def my_appointments(session: models.CustomerSession = Depends(require_session), db: Session = Depends(get_db)):
+    now = local_now()
+    items = [_my_out(a, now) for a in crud.list_customer_appointments(db, session.customer_id)]
+    counts = {s: sum(1 for x in items if x.state == s) for s in ("scheduled", "done", "cancelled")}
+    return schemas.MyAppointmentsOut(
+        cancel_min_hours=settings.cancel_min_hours,
+        counts=schemas.MyAppointmentsCounts(total=len(items), **counts),
+        appointments=items,
+    )
+
+
+@router.post("/me/appointments/{appt_id}/cancel", response_model=schemas.MyAppointmentOut, summary="Cancelar mi reserva")
+def cancel_my_appointment(
+    appt_id: int,
+    session: models.CustomerSession = Depends(require_session),
+    db: Session = Depends(get_db),
+):
+    appt = crud.cancel_appointment(db, _own_changeable(db, session, appt_id, "cancelar"))
+    send_whatsapp(appt.customer_phone, cancellation_message(
+        settings.business_name, appt.customer_name, appt.service.name, appt.start_at))
+    return _my_out(appt, local_now())
+
+
+@router.post("/me/appointments/{appt_id}/reschedule", response_model=schemas.MyAppointmentOut,
+             summary="Reprogramar mi reserva")
+def reschedule_my_appointment(
+    appt_id: int,
+    payload: schemas.RescheduleIn,
+    session: models.CustomerSession = Depends(require_session),
+    db: Session = Depends(get_db),
+):
+    """Solo cambia fecha y hora (mismo servicio y mismo pago). El horario actual de la
+    cita no cuenta como ocupado al buscar el nuevo."""
+    appt = _own_changeable(db, session, appt_id, "reprogramar")
+    if payload.start_at == appt.start_at:
+        raise HTTPException(status_code=422, detail="Elige un horario distinto al actual.")
+    if not is_slot_free(db, appt.service, payload.start_at, exclude_id=appt.id):
+        raise HTTPException(status_code=409, detail="Ese horario ya no está disponible. Por favor elige otro.")
+    appt = crud.reschedule_appointment(db, appt, payload.start_at)
+    send_whatsapp(appt.customer_phone, reschedule_message(
+        settings.business_name, appt.customer_name, appt.service.name, appt.start_at))
+    return _my_out(appt, local_now())

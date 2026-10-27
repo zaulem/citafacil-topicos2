@@ -29,6 +29,24 @@ def confirmation_message(business: str, customer_name: str, service_name: str, s
     )
 
 
+def cancellation_message(business: str, customer_name: str, service_name: str, start_at: datetime) -> str:
+    return (
+        f"Hola {customer_name}, cancelamos tu cita en {business}:\n"
+        f"✂️ {service_name}\n"
+        f"🗓️ {_fmt_dt(start_at)}\n\n"
+        f"Te devolvimos el pago. ¡Esperamos verte pronto!"
+    )
+
+
+def reschedule_message(business: str, customer_name: str, service_name: str, start_at: datetime) -> str:
+    return (
+        f"Hola {customer_name}, tu cita en {business} cambió de horario:\n"
+        f"✂️ {service_name}\n"
+        f"🗓️ Nuevo horario: {_fmt_dt(start_at)}\n\n"
+        f"Te enviaremos un recordatorio antes. ¡Te esperamos!"
+    )
+
+
 def reminder_message(business: str, customer_name: str, service_name: str, start_at: datetime) -> str:
     return (
         f"Hola {customer_name}, te recordamos tu cita en {business}:\n"

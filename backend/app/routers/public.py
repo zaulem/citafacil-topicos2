@@ -36,16 +36,30 @@ def get_services(db: Session = Depends(get_db)):
     return crud.list_services(db, only_active=True)
 
 
+_EXCLUDE_HELP = "ID de una cita propia que se está reprogramando: su horario no cuenta como ocupado (requiere sesión)"
+
+
+def _own_exclude(db: Session, customer: Optional[models.Customer], exclude_id: Optional[int]) -> Optional[int]:
+    """Solo se excluye la cita si es del cliente con sesión; si no, se ignora en silencio
+    (así el parámetro no sirve para espiar la agenda de otros)."""
+    if exclude_id is None or customer is None:
+        return None
+    appt = crud.get_appointment(db, exclude_id)
+    return exclude_id if appt and appt.customer_id == customer.id else None
+
+
 @router.get("/availability", response_model=list[str], summary="Horarios disponibles")
 def get_availability(
     service_id: int = Query(..., description="ID del servicio"),
     day: date = Query(..., alias="date", description="Fecha en formato YYYY-MM-DD"),
+    exclude_id: Optional[int] = Query(None, description=_EXCLUDE_HELP),
     db: Session = Depends(get_db),
+    customer: Optional[models.Customer] = Depends(optional_customer),
 ):
     service = crud.get_service(db, service_id)
     if not service or not service.active:
         raise HTTPException(status_code=404, detail="Servicio no encontrado.")
-    return generate_slots(db, service, day)
+    return generate_slots(db, service, day, _own_exclude(db, customer, exclude_id))
 
 
 @router.get(
@@ -58,7 +72,9 @@ def get_month_availability(
     month: Optional[str] = Query(
         None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="Mes YYYY-MM (por defecto, el actual)"
     ),
+    exclude_id: Optional[int] = Query(None, description=_EXCLUDE_HELP),
     db: Session = Depends(get_db),
+    customer: Optional[models.Customer] = Depends(optional_customer),
 ):
     service = crud.get_service(db, service_id)
     if not service or not service.active:
@@ -69,7 +85,7 @@ def get_month_availability(
         month=f"{year:04d}-{mon:02d}",
         today=today.isoformat(),
         max_date=max_booking_date().isoformat(),
-        days=month_overview(db, service, year, mon),
+        days=month_overview(db, service, year, mon, _own_exclude(db, customer, exclude_id)),
     )
 
 
