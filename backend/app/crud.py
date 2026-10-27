@@ -161,6 +161,10 @@ def get_appointment(db: Session, appt_id: int) -> Optional[models.Appointment]:
 
 
 def set_status(db: Session, appt: models.Appointment, status: str) -> models.Appointment:
+    """Cambio de estado del admin. Cancelar reembolsa el pago igual que cuando cancela
+    el cliente (H-31). La validez de la transición la revisa el endpoint."""
+    if status == models.STATUS_CANCELLED:
+        return cancel_appointment(db, appt)
     appt.status = status
     db.commit()
     db.refresh(appt)

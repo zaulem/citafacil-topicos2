@@ -16,6 +16,25 @@ STATUS_CANCELLED = "cancelled"
 STATUS_DONE = "done"
 VALID_STATUSES = {STATUS_PENDING, STATUS_CONFIRMED, STATUS_CANCELLED, STATUS_DONE}
 
+# Transiciones permitidas (H-30): Realizada y Cancelada son finales. Así una cita
+# cancelada (y reembolsada) no puede reactivarse sin pago ni crear una doble reserva.
+ALLOWED_TRANSITIONS = {
+    STATUS_PENDING: {STATUS_CONFIRMED, STATUS_DONE, STATUS_CANCELLED},
+    STATUS_CONFIRMED: {STATUS_DONE, STATUS_CANCELLED},
+    STATUS_DONE: set(),
+    STATUS_CANCELLED: set(),
+}
+STATUS_LABELS = {STATUS_PENDING: "pendiente", STATUS_CONFIRMED: "confirmada",
+                 STATUS_DONE: "realizada", STATUS_CANCELLED: "cancelada"}
+
+
+def is_completed(appt: "Appointment", now: datetime) -> bool:
+    """Completada: el admin la marcó Realizada o ya pasó su hora (y no está cancelada).
+    Única regla usada por Mis reservas y por las estadísticas (H-30, H-35)."""
+    if appt.status == STATUS_CANCELLED:
+        return False
+    return appt.status == STATUS_DONE or appt.start_at <= now
+
 # Estado del pago de una cita (US-01)
 PAYMENT_UNPAID = "unpaid"
 PAYMENT_PAID = "paid"

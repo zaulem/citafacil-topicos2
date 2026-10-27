@@ -118,7 +118,8 @@ def delete_card(session: models.CustomerSession = Depends(require_session), db: 
 def _state(appt: models.Appointment, now) -> str:
     if appt.status == models.STATUS_CANCELLED:
         return "cancelled"
-    return "done" if appt.start_at <= now else "scheduled"
+    # Completada si el admin la marcó Realizada o si ya pasó su hora (H-30).
+    return "done" if models.is_completed(appt, now) else "scheduled"
 
 
 def _deadline(appt: models.Appointment):

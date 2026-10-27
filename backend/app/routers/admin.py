@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas
+from .. import crud, models, schemas
 from ..auth import require_admin
 from ..availability import max_booking_date
 from ..database import get_db
@@ -67,6 +67,14 @@ def change_status(appt_id: int, payload: schemas.AppointmentStatusUpdate, db: Se
     appt = crud.get_appointment(db, appt_id)
     if not appt:
         raise HTTPException(status_code=404, detail="Cita no encontrada.")
+    if payload.status == appt.status:
+        return appt  # sin cambios
+    if payload.status not in models.ALLOWED_TRANSITIONS[appt.status]:
+        labels = models.STATUS_LABELS
+        raise HTTPException(
+            status_code=409,
+            detail=f"Una cita {labels[appt.status]} no puede pasar a {labels[payload.status]}.",
+        )
     return crud.set_status(db, appt, payload.status)
 
 
