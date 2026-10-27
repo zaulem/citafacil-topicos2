@@ -306,6 +306,14 @@
   }
 
   const STLABEL = {pending:"Pendiente",confirmed:"Confirmada",cancelled:"Cancelada",done:"Realizada"};
+  // Mismas transiciones que el backend (ALLOWED_TRANSITIONS, H-30): Realizada y Cancelada
+  // son finales, así que esas filas solo muestran "Eliminar".
+  const NEXT_STATUS = {pending: ["confirmed", "done", "cancelled"], confirmed: ["done", "cancelled"], done: [], cancelled: []};
+  const ACTION_BTN = {
+    confirmed: id => `<button class="ico ok" title="Confirmar" onclick="setStatus(${id},'confirmed')"><i class="fa-solid fa-check"></i></button>`,
+    done: id => `<button class="ico ok" title="Marcar realizada" onclick="setStatus(${id},'done')"><i class="fa-solid fa-flag-checkered"></i></button>`,
+    cancelled: id => `<button class="ico warn" title="Cancelar" onclick="setStatus(${id},'cancelled')"><i class="fa-solid fa-ban"></i></button>`,
+  };
   // Pago simulado (US-01): monto cobrado y tarjeta usada (solo marca y últimos 4).
   function payCell(a){
     if(a.payment_status === "refunded")  // US-05: cancelada por el cliente dentro del plazo
@@ -334,10 +342,7 @@
           <td class="mono">${esc(a.customer_phone)}</td><td>${esc(svc)}</td>
           <td>${payCell(a)}</td>
           <td><span class="badge b-${a.status}">${STLABEL[a.status]||a.status}</span></td>
-          <td><div class="actions">
-            <button class="ico ok" title="Confirmar" onclick="setStatus(${a.id},'confirmed')"><i class="fa-solid fa-check"></i></button>
-            <button class="ico ok" title="Marcar realizada" onclick="setStatus(${a.id},'done')"><i class="fa-solid fa-flag-checkered"></i></button>
-            <button class="ico warn" title="Cancelar" onclick="setStatus(${a.id},'cancelled')"><i class="fa-solid fa-ban"></i></button>
+          <td><div class="actions">${(NEXT_STATUS[a.status] || []).map(st => ACTION_BTN[st](a.id)).join("")}
             <button class="ico del" title="Eliminar" onclick="delAppt(${a.id})"><i class="fa-solid fa-trash"></i></button>
           </div></td>`;
         body.appendChild(tr);
@@ -346,6 +351,7 @@
   }
 
   async function setStatus(id, status){
+    if(status === "cancelled" && !confirm("¿Cancelar esta cita? Si estaba pagada, se reembolsa el pago al cliente.")) return;
     try{ await api(`/api/admin/appointments/${id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status})});
       toast("Estado actualizado","ok"); refreshAll();
     }catch(e){ toast(e.message,"err"); }

@@ -867,6 +867,7 @@
     try{
       await api(`/api/me/appointments/${a.id}/cancel`, {method: "POST", headers: authHeaders()}, 65000);
       mineMessage("Reserva cancelada. El pago fue reembolsado.", "ok");
+      if(state.reschedule && state.reschedule.id === a.id) endReschedule(); // ya no hay nada que reprogramar
     }catch(e){ mineMessage(e.message, "err"); }
     loadMine();
   }
@@ -877,6 +878,9 @@
   function startReschedule(a){
     const s = state.services.find(x => x.id === a.service_id);
     if(!s){ mineMessage("Ese servicio ya no está disponible; cancela y reserva otro.", "err"); return; }
+    // Si se viene de una pantalla final ("Reserva confirmada" / "Cita reprogramada"),
+    // hay que volver a mostrar el flujo antes de abrir el calendario (H-34).
+    resetBookingView();
     state.reschedule = {id: a.id, service_id: a.service_id, label: `${a.service.name} del ${fmtWhen(a.start_at)}`};
     $("rsLabel").textContent = state.reschedule.label;
     document.body.classList.add("rescheduling");

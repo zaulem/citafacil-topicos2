@@ -130,14 +130,21 @@ def build_forecast(db: Session, start: date, end: date, service: Optional[models
     rows = query(service_filter=True)
     in_range = [a for a in rows if start <= a.start_at.date() <= end]
     registered = [a for a in in_range if a.status != models.STATUS_CANCELLED]
-    done = [a for a in registered if a.start_at.date() < today]
-    booked = [a for a in registered if a.start_at.date() >= today]
+    # Realizada: el admin la marcó así o ya pasó su hora (H-35, misma regla que Mis reservas
+    # y que "Próximas" en la pestaña Reservas).
+    now = local_now()
+    done = [a for a in registered if models.is_completed(a, now)]
+    booked = [a for a in registered if not models.is_completed(a, now)]
     cancelled = [a for a in in_range if a.status == models.STATUS_CANCELLED]
+    # Para la ocupación y la previsión cuenta el día de la cita, no su estado: una cita
+    # de mañana marcada Realizada igual ocupa ese turno.
+    past = [a for a in registered if a.start_at.date() < today]
+    future = [a for a in registered if a.start_at.date() >= today]
 
-    real = _real_section(db, start, end, today, open_days, open_min, in_range, registered, done, booked,
-                         cancelled, query, service)
+    real = _real_section(db, start, end, today, now, open_days, open_min, in_range, registered, done, booked,
+                         cancelled, past, future, query, service)
     forecast = _forecast_section(start, end, today, current_week, base_start, open_days, open_min,
-                                 rows, booked, service)
+                                 rows, future, service)
     return {
         "start": start.isoformat(),
         "end": end.isoformat(),
@@ -150,15 +157,15 @@ def build_forecast(db: Session, start: date, end: date, service: Optional[models
 
 
 # ---------- Sección REAL: solo citas que existen ----------
-def _real_section(db, start, end, today, open_days, open_min, in_range, registered, done, booked,
-                  cancelled, query, service) -> dict:
+def _real_section(db, start, end, today, now, open_days, open_min, in_range, registered, done, booked,
+                  cancelled, past, future, query, service) -> dict:
     revenue = sum(a.price_paid_cents or 0 for a in registered)
 
     # Ocupación: con días pasados en el rango se mide lo realizado; si el rango es solo
     # futuro, lo ya reservado. Así no se diluye con días futuros aún sin reservas.
     basis = "done" if any(d < today for d in _days_between(start, end, open_days)) else "booked"
     basis_days = [d for d in _days_between(start, end, open_days) if (d < today) == (basis == "done")]
-    basis_appts = done if basis == "done" else booked
+    basis_appts = past if basis == "done" else future
 
     by_wd_min: dict[int, float] = defaultdict(float)
     hour_min: dict[int, float] = defaultdict(float)
@@ -191,7 +198,7 @@ def _real_section(db, start, end, today, open_days, open_min, in_range, register
         if a.status == models.STATUS_CANCELLED:
             w["cancelled"] += 1
         else:
-            w["done" if a.start_at.date() < today else "booked"] += 1
+            w["done" if models.is_completed(a, now) else "booked"] += 1
 
     # Servicios: siempre todos (sin el filtro de servicio), para poder elegir uno.
     svc: dict[int, dict] = {}
