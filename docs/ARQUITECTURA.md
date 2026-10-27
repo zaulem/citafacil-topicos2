@@ -75,6 +75,7 @@ Se divide en dos PRs: **A** (cuentas de cliente) y **B** (pago simulado y tarjet
 
 - Depende de US-01. **Implementado:** `GET /api/me/appointments` (contadores total/programadas/completadas/canceladas), `POST /api/me/appointments/{id}/cancel` (reembolso simulado: `payment_status = refunded`) y `POST /api/me/appointments/{id}/reschedule` (solo fecha y hora; mismo servicio y pago; sin límite de veces). Plazo: hasta `CANCEL_MIN_HOURS` = 24 h antes de la cita. Una cita ajena responde 404.
 - **Reprogramar sin chocar consigo misma (H-29):** la disponibilidad acepta `exclude_id` para no contar como ocupada la cita que se mueve; en los endpoints públicos solo se respeta si la cita es del cliente con sesión.
+- **Estados de una cita (H-30 a H-35):** Pendiente → Confirmada / Realizada / Cancelada; Confirmada → Realizada / Cancelada; Realizada y Cancelada son finales (`models.ALLOWED_TRANSITIONS`). "Completada" = Realizada por el admin o ya pasó su hora (`models.is_completed`), la misma regla en Mis reservas, en Ver Estadísticas y en "Próximas" de Reservas. Cancelar (cliente o admin) reembolsa el pago.
 - **Frontend:** pestañas "Reservar" / "Mis reservas" (solo con sesión) y "modo reprogramar" que reutiliza el calendario y los horarios del paso 2.
 
 ## 4. Orden de trabajo
