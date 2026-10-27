@@ -1,0 +1,32 @@
+# Ejecuta los tests automatizados en cada push a main y en cada Pull Request.
+# El resultado aparece como un check (verde/rojo) en el PR antes de hacer merge.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      # Misma versión que el proyecto (render.yaml) y que el entorno local (H-01).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      # Node.js ya viene en el runner: lo usa test_frontend_security.py para ejecutar esc().
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      # Los tests fijan su propia configuración (tests/conftest.py, H-18): no necesitan .env.
+      - name: Ejecutar tests
+        run: python -m pytest -v
