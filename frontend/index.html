@@ -140,6 +140,38 @@
   .result p{color:var(--muted);margin-bottom:18px}
   .msg{border-radius:10px;padding:11px 14px;font-size:.9rem;margin-top:12px;display:none}
   .msg.err{display:block;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:#fecaca}
+  .msg.ok{display:block;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#bbf7d0}
+  .hide{display:none!important}
+  .btn.sm{padding:7px 12px;font-size:.82rem;border-radius:9px}
+  .btn.danger{color:var(--err);border-color:rgba(248,113,113,.4)}
+
+  /* Pestañas Reservar / Mis reservas y modo reprogramar (US-05) */
+  .view-tabs{display:flex;gap:6px;margin:4px 0 20px;border-bottom:1px solid var(--border)}
+  .vtab{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;color:var(--muted);font:inherit;font-weight:700;padding:10px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+  .vtab:hover{color:var(--text)} .vtab.active{color:var(--text);border-bottom-color:var(--accent)}
+  .rs-banner{display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px;padding:12px 16px;border-radius:12px;border:1.5px dashed var(--warn);background:rgba(245,158,11,.08);font-size:.9rem}
+  body.rescheduling .rs-banner{display:flex}
+  body.rescheduling .steps, body.rescheduling #whoFields, body.rescheduling #payBox, body.rescheduling #sessionNote{display:none!important}
+  body.rescheduling .svc:not(.sel){opacity:.35;pointer-events:none}
+  .mine-counts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+  @media(max-width:600px){.mine-counts{grid-template-columns:repeat(2,1fr)}}
+  .mstat{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+  .mstat .v{font-size:1.4rem;font-weight:800} .mstat .k{color:var(--muted);font-size:.8rem;font-weight:600}
+  .mstat.acc .v{color:var(--accent-2)} .mstat.ok .v{color:var(--ok)} .mstat.muted .v{color:var(--muted)}
+  .mine-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .mine-filters button{background:var(--bg-soft);border:1.5px solid var(--border);color:var(--muted);border-radius:999px;padding:6px 14px;font:inherit;font-size:.85rem;font-weight:700;cursor:pointer}
+  .mine-filters button.active{border-color:var(--accent);color:var(--text)}
+  .mine-list{max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:12px}
+  .mine-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--border)}
+  .mine-row:last-child{border-bottom:none}
+  .mine-info{flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px;font-size:.9rem}
+  .mine-pay{color:var(--muted);font-size:.8rem}
+  .mbadge{font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
+  .mbadge.scheduled{background:rgba(34,211,238,.14);color:var(--accent-2)}
+  .mbadge.done{background:rgba(34,197,94,.14);color:var(--ok)}
+  .mbadge.cancelled{background:rgba(248,113,113,.14);color:var(--err)}
+  .mine-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .mine-note{color:var(--muted);font-size:.78rem}
 
   footer{border-top:1px solid var(--border);padding:22px 0;text-align:center;color:var(--muted);font-size:.85rem}
   footer a{color:var(--accent-2);font-weight:600;cursor:pointer}
@@ -169,6 +201,18 @@
 
 <main>
   <div class="wrap">
+    <!-- Pestañas: solo con sesión (US-05) -->
+    <div class="view-tabs hide" id="viewTabs" role="tablist">
+      <button type="button" class="vtab active" id="tabBook" role="tab"><i class="fa-solid fa-calendar-plus"></i> Reservar</button>
+      <button type="button" class="vtab" id="tabMine" role="tab"><i class="fa-solid fa-list-check"></i> Mis reservas</button>
+    </div>
+
+    <!-- VISTA: RESERVAR -->
+    <div id="viewBook">
+    <div class="rs-banner" id="rsBanner">
+      <span><i class="fa-solid fa-calendar-days"></i> Reprogramando <b id="rsLabel"></b> · elige el nuevo día y hora.</span>
+      <button type="button" class="btn ghost sm" id="rsCancel">Cancelar cambio</button>
+    </div>
     <div class="steps">
       <div class="step active" id="st1"><span class="num">1</span> Servicio</div>
       <span class="step-sep">—</span>
@@ -214,9 +258,11 @@
       <p class="hint">Para confirmarte la reserva por WhatsApp.</p>
       <div class="summary" id="summary"></div>
       <div class="session-note" id="sessionNote"></div>
-      <div class="field"><label for="name">Nombre y apellido</label><input id="name" placeholder="Ej: Camila Rojas" autocomplete="name" /></div>
-      <div class="field"><label for="phone">Celular (WhatsApp)</label><input id="phone" placeholder="+507 6XXX XXXX" inputmode="tel" autocomplete="tel" /></div>
-      <div class="field"><label for="notes">Nota (opcional)</label><input id="notes" placeholder="Algo que debamos saber" /></div>
+      <div id="whoFields">
+        <div class="field"><label for="name">Nombre y apellido</label><input id="name" placeholder="Ej: Camila Rojas" autocomplete="name" /></div>
+        <div class="field"><label for="phone">Celular (WhatsApp)</label><input id="phone" placeholder="+507 6XXX XXXX" inputmode="tel" autocomplete="tel" /></div>
+        <div class="field"><label for="notes">Nota (opcional)</label><input id="notes" placeholder="Algo que debamos saber" /></div>
+      </div>
       <div class="pay" id="payBox">
         <h3><i class="fa-solid fa-credit-card"></i> Pago</h3>
         <div id="savedOpts" style="display:none">
@@ -241,9 +287,28 @@
     <div class="card" id="cardDone" style="display:none">
       <div class="result ok">
         <div class="ic"><i class="fa-solid fa-circle-check"></i></div>
-        <h3>¡Reserva confirmada!</h3>
+        <h3 id="doneTitle">¡Reserva confirmada!</h3>
         <p id="doneMsg"></p>
         <button class="btn" onclick="location.reload()"><i class="fa-solid fa-plus"></i> Hacer otra reserva</button>
+        <button type="button" class="btn ghost hide" id="doneMine"><i class="fa-solid fa-list-check"></i> Ver mis reservas</button>
+      </div>
+    </div>
+    </div>
+
+    <!-- VISTA: MIS RESERVAS (US-05) -->
+    <div id="viewMine" class="hide">
+      <div class="card">
+        <h2><i class="fa-solid fa-list-check"></i> Mis reservas</h2>
+        <p class="hint" id="mineHint">Puedes cancelar (con reembolso) o reprogramar tus citas programadas.</p>
+        <div class="mine-counts" id="mineCounts"></div>
+        <div class="mine-filters">
+          <button type="button" data-mine-filter="scheduled">Programadas</button>
+          <button type="button" data-mine-filter="done">Completadas</button>
+          <button type="button" data-mine-filter="cancelled">Canceladas</button>
+          <button type="button" data-mine-filter="all">Todas</button>
+        </div>
+        <div class="mine-list" id="mineList"></div>
+        <div class="msg" id="mineMsg"></div>
       </div>
     </div>
   </div>
@@ -384,6 +449,7 @@
     state.services.forEach(s=>{
       const el = document.createElement("div");
       el.className = "svc";
+      el.dataset.id = s.id;
       el.innerHTML = `<div class="n">${s.name}</div><div class="meta"><span><i class="fa-regular fa-clock"></i> ${s.duration_min} min</span><span class="price">${money(s.price_cents)}</span></div>`;
       el.onclick = ()=>selectService(s, el);
       g.appendChild(el);
@@ -399,6 +465,7 @@
   }
 
   function selectService(s, el){
+    if(state.reschedule && s.id !== state.reschedule.service_id) return; // al reprogramar no se cambia el servicio
     state.service = s; clearTime();
     document.querySelectorAll(".svc").forEach(x=>x.classList.remove("sel"));
     el.classList.add("sel");
@@ -423,8 +490,8 @@
     const myReq = ++monthReq;
     $("calGrid").innerHTML = '<div class="empty" style="grid-column:1/-1"><span class="spin"></span> Cargando calendario…</div>';
     try{
-      const q = `/api/availability/month?service_id=${state.service.id}` + (month ? `&month=${month}` : "");
-      const data = await api(q, null, 65000);
+      const q = `/api/availability/month?service_id=${state.service.id}` + (month ? `&month=${month}` : "") + excludeParam();
+      const data = await api(q, {headers: authHeaders()}, 65000);
       if(myReq !== monthReq) return; // llegó tarde: hay una petición más nueva
       state.month = data.month; state.cal = data;
       renderMonth();
@@ -495,7 +562,7 @@
     const myReq = ++slotsReq;
     box.innerHTML = '<div class="empty"><span class="spin"></span> Buscando horarios…</div>';
     try{
-      const list = await api(`/api/availability?service_id=${state.service.id}&date=${date}`, null, 65000);
+      const list = await api(`/api/availability?service_id=${state.service.id}&date=${date}` + excludeParam(), {headers: authHeaders()}, 65000);
       if(myReq !== slotsReq) return; // llegó tarde: hay una petición más nueva
       if(!Array.isArray(list) || !list.length){
         box.innerHTML='<div class="empty">No hay horarios ese día. Prueba otra fecha.</div>'; return;
@@ -524,6 +591,7 @@
   }
 
   $("confirmBtn").addEventListener("click", async ()=>{
+    if(state.reschedule){ confirmReschedule(); return; }
     const name = $("name").value.trim(), phone = $("phone").value.trim();
     const msg = $("formMsg"); msg.className="msg";
     if(name.length<2 || !phone){ msg.className="msg err"; msg.textContent="Completa tu nombre y celular."; return; }
@@ -539,13 +607,9 @@
       if(payment.save_card) loadSavedCard();
       const d=new Date(state.date+"T"+state.time);
       const fecha=d.toLocaleDateString("es-PA",{weekday:"long",day:"2-digit",month:"long"});
-      $("doneMsg").innerHTML=`Te esperamos el <b>${fecha}</b> a las <b>${state.time}</b>.<br>`
+      showDone("¡Reserva confirmada!", `Te esperamos el <b>${fecha}</b> a las <b>${state.time}</b>.<br>`
         + `Pago aprobado: <b>${money(appt.price_paid_cents)}</b> con ${esc(appt.payment_brand)} •••• ${esc(appt.payment_last4)}.<br>`
-        + `Te enviamos la confirmación por WhatsApp a ${esc(phone)}.`;
-      ["cardSvc","cardWhen","cardWho"].forEach(id=>$(id).style.display="none");
-      document.querySelector(".steps").style.display="none";
-      $("cardDone").style.display="block";
-      $("cardDone").scrollIntoView({behavior:"smooth",block:"center"});
+        + `Te enviamos la confirmación por WhatsApp a ${esc(phone)}.`);
     }catch(e){
       msg.className="msg err";
       msg.textContent = e.message;
@@ -564,6 +628,7 @@
   const payMode = () => (document.querySelector('input[name="payMode"]:checked') || {}).value;
 
   function confirmLabel(){
+    if(state.reschedule) return '<i class="fa-solid fa-calendar-check"></i> Confirmar cambio'; // sin pago: mismo servicio
     const amount = state.service ? " " + money(state.service.price_cents) : "";
     return `<i class="fa-solid fa-lock"></i> Pagar${amount} y confirmar`;
   }
@@ -632,9 +697,13 @@
     if(session){
       const c = session.customer;
       area.innerHTML = '<span class="acct-name"><i class="fa-solid fa-circle-user"></i> <span id="acctFirst"></span></span> '
+        + '<button type="button" class="acct-btn" id="mineBtn"><i class="fa-solid fa-list-check"></i> Mis reservas</button> '
         + '<button type="button" class="acct-btn" id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i> Salir</button>';
       $("acctFirst").textContent = c.name.split(" ")[0]; // texto, no HTML (el nombre lo escribe el usuario)
       $("logoutBtn").onclick = logout;
+      $("mineBtn").onclick = ()=>showView("mine");
+      $("viewTabs").classList.remove("hide");
+      $("doneMine").classList.remove("hide");
       $("name").value = c.name;
       $("phone").value = fmtPhone(c.phone);
       note.style.display = "block";
@@ -643,6 +712,11 @@
       area.innerHTML = '<button type="button" class="acct-btn" id="loginOpen"><i class="fa-solid fa-user"></i> Ingresar</button>';
       $("loginOpen").onclick = ()=>openAuth("login");
       note.style.display = "none";
+      // Sin sesión no hay "Mis reservas": se vuelve a la vista de reserva.
+      $("viewTabs").classList.add("hide");
+      $("doneMine").classList.add("hide");
+      if(state.reschedule) endReschedule();
+      showView("book");
     }
   }
 
@@ -709,6 +783,151 @@
     }catch(e){
       if(e.status === 401) saveSession(null);
     }
+  }
+
+  /* ====== MIS RESERVAS (US-05) ====== */
+  // Pestaña visible solo con sesión: contadores, filtro por estado y lista con su propio
+  // desplazamiento. Cancelar reembolsa el pago; reprogramar reutiliza el calendario del
+  // paso 2 en "modo reprogramar" (mismo servicio, sin pago, sin contar su propio horario).
+  let mine = null, mineFilter = "scheduled";
+  const STATE_LABEL = {scheduled: "Programada", done: "Completada", cancelled: "Cancelada"};
+  const fmtWhen = iso => new Date(iso).toLocaleDateString("es-PA", {weekday: "short", day: "2-digit", month: "2-digit"})
+    + " · " + iso.slice(11, 16);
+
+  function showView(v){
+    $("viewBook").classList.toggle("hide", v !== "book");
+    $("viewMine").classList.toggle("hide", v !== "mine");
+    $("tabBook").classList.toggle("active", v === "book");
+    $("tabMine").classList.toggle("active", v === "mine");
+    if(v === "mine"){ $("mineMsg").className = "msg"; loadMine(); }
+  }
+  $("tabBook").onclick = ()=>showView("book");
+  $("tabMine").onclick = ()=>showView("mine");
+  // Tras confirmar, la selección anterior ya no vale (ese horario quedó tomado): se reinicia.
+  $("doneMine").onclick = ()=>{ resetBookingView(); endReschedule(); showView("mine"); };
+  document.querySelectorAll("[data-mine-filter]").forEach(b => b.onclick = ()=>{ mineFilter = b.dataset.mineFilter; renderMine(); });
+
+  async function loadMine(){
+    $("mineList").innerHTML = '<div class="empty" style="padding:14px"><span class="spin"></span> Cargando tus reservas…</div>';
+    try{
+      mine = await api("/api/me/appointments", {headers: authHeaders()}, 65000);
+      renderMine();
+    }catch(e){
+      if(e.status === 401){ saveSession(null); return; }
+      $("mineList").innerHTML = '<div class="empty" style="padding:14px"></div>';
+      $("mineList").firstChild.textContent = "Error: " + e.message;
+    }
+  }
+
+  function mineButton(label, icon, onclick, cls){
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn ghost sm " + (cls || "");
+    b.innerHTML = `<i class="fa-solid ${icon}"></i> ${label}`;
+    b.onclick = onclick;
+    return b;
+  }
+
+  function renderMine(){
+    const c = mine.counts;
+    $("mineHint").textContent = `Puedes cancelar (con reembolso) o reprogramar tus citas hasta ${mine.cancel_min_hours} h antes.`;
+    $("mineCounts").innerHTML = [["Total", c.total, ""], ["Programadas", c.scheduled, "acc"], ["Completadas", c.done, "ok"], ["Canceladas", c.cancelled, "muted"]]
+      .map(([k, v, cls]) => `<div class="mstat ${cls}"><div class="v">${v}</div><div class="k">${k}</div></div>`).join("");
+    document.querySelectorAll("[data-mine-filter]").forEach(b => b.classList.toggle("active", b.dataset.mineFilter === mineFilter));
+
+    let items = mine.appointments.filter(a => mineFilter === "all" || a.state === mineFilter);
+    if(mineFilter === "scheduled") items = items.slice().reverse(); // programadas: la más cercana primero
+    const box = $("mineList");
+    if(!items.length){ box.innerHTML = '<div class="empty" style="padding:14px">No hay reservas en este filtro.</div>'; return; }
+    box.innerHTML = "";
+    items.forEach(a => {
+      const pay = a.payment_status === "refunded" ? `Reembolsado ${money(a.price_paid_cents)}`
+        : a.payment_status === "paid" ? `Pagado ${money(a.price_paid_cents)}` : "Sin pago";
+      const card = a.payment_last4 ? ` · ${esc(a.payment_brand)} •••• ${esc(a.payment_last4)}` : "";
+      const row = document.createElement("div");
+      row.className = "mine-row";
+      row.innerHTML = `<div class="mine-info"><b class="mono">${fmtWhen(a.start_at)}</b><span>${esc(a.service ? a.service.name : "")}</span>`
+        + `<span class="mine-pay">${pay}${card}</span></div>`
+        + `<span class="mbadge ${a.state}">${STATE_LABEL[a.state]}</span><div class="mine-actions"></div>`;
+      const actions = row.querySelector(".mine-actions");
+      if(a.can_change){
+        actions.append(mineButton("Reprogramar", "fa-calendar-days", ()=>startReschedule(a)),
+                       mineButton("Cancelar", "fa-xmark", ()=>cancelMine(a), "danger"));
+      }else if(a.state === "scheduled"){
+        actions.innerHTML = `<span class="mine-note">Solo se puede cancelar o reprogramar hasta ${mine.cancel_min_hours} h antes</span>`;
+      }
+      box.appendChild(row);
+    });
+  }
+
+  function mineMessage(text, kind){ const m = $("mineMsg"); m.className = "msg " + kind; m.textContent = text; }
+
+  async function cancelMine(a){
+    if(!confirm(`¿Cancelar ${a.service.name} del ${fmtWhen(a.start_at)}?\nSe te devolverá el pago.`)) return;
+    try{
+      await api(`/api/me/appointments/${a.id}/cancel`, {method: "POST", headers: authHeaders()}, 65000);
+      mineMessage("Reserva cancelada. El pago fue reembolsado.", "ok");
+    }catch(e){ mineMessage(e.message, "err"); }
+    loadMine();
+  }
+
+  /* --- Modo reprogramar: mismo calendario y horarios del paso 2 --- */
+  const excludeParam = () => state.reschedule ? `&exclude_id=${state.reschedule.id}` : "";
+
+  function startReschedule(a){
+    const s = state.services.find(x => x.id === a.service_id);
+    if(!s){ mineMessage("Ese servicio ya no está disponible; cancela y reserva otro.", "err"); return; }
+    state.reschedule = {id: a.id, service_id: a.service_id, label: `${a.service.name} del ${fmtWhen(a.start_at)}`};
+    $("rsLabel").textContent = state.reschedule.label;
+    document.body.classList.add("rescheduling");
+    $("formMsg").className = "msg";
+    showView("book");
+    selectService(s, document.querySelector(`.svc[data-id="${s.id}"]`));
+  }
+
+  function endReschedule(){
+    state.reschedule = null;
+    document.body.classList.remove("rescheduling");
+    state.service = null; state.date = null; clearTime(); setStep(1);
+    document.querySelectorAll(".svc").forEach(x => x.classList.remove("sel"));
+    $("whenHint").textContent = "Primero selecciona un servicio.";
+    $("calGrid").innerHTML = '<div class="empty" style="grid-column:1/-1">Primero selecciona un servicio.</div>';
+    $("slots").innerHTML = '<div class="empty">Elige un día del calendario.</div>';
+    $("confirmBtn").innerHTML = confirmLabel();
+  }
+  $("rsCancel").onclick = ()=>{ endReschedule(); showView("mine"); };
+
+  async function confirmReschedule(){
+    const msg = $("formMsg"); msg.className = "msg";
+    if(!state.date || !state.time){ msg.className = "msg err"; msg.textContent = "Elige el nuevo día y hora."; return; }
+    const btn = $("confirmBtn"); btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Guardando cambio…';
+    try{
+      const a = await api(`/api/me/appointments/${state.reschedule.id}/reschedule`, {method: "POST",
+        headers: Object.assign({"Content-Type": "application/json"}, authHeaders()),
+        body: JSON.stringify({start_at: `${state.date}T${state.time}:00`})}, 65000);
+      const label = state.reschedule.label;
+      endReschedule();
+      showDone("¡Cita reprogramada!", `${esc(label)}<br>Nuevo horario: <b>${fmtWhen(a.start_at)}</b>.<br>`
+        + "Te enviamos la confirmación por WhatsApp.");
+    }catch(e){
+      msg.className = "msg err"; msg.textContent = e.message;
+      if(e.status === 409){ loadMonth(state.month); loadSlots(); }
+    }finally{ btn.disabled = false; btn.innerHTML = confirmLabel(); }
+  }
+
+  /* --- Pantalla final (reserva confirmada o cita reprogramada) --- */
+  function showDone(title, html){
+    $("doneTitle").textContent = title;
+    $("doneMsg").innerHTML = html;
+    ["cardSvc", "cardWhen", "cardWho"].forEach(id => $(id).style.display = "none");
+    document.querySelector(".steps").style.display = "none";
+    $("cardDone").style.display = "block";
+    $("cardDone").scrollIntoView({behavior: "smooth", block: "center"});
+  }
+  function resetBookingView(){
+    ["cardSvc", "cardWhen", "cardWho"].forEach(id => $(id).style.display = "");
+    document.querySelector(".steps").style.display = "";
+    $("cardDone").style.display = "none";
   }
 
   restoreSession();
