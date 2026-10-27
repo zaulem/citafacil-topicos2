@@ -121,6 +121,35 @@ class AppointmentOut(BaseModel):
     service: Optional[ServiceOut] = None
 
 
+# ---------- Mis reservas (US-05) ----------
+class MyAppointmentOut(AppointmentOut):
+    state: str = Field(..., description="scheduled (programada) | done (completada) | cancelled")
+    can_change: bool = Field(..., description="Se puede cancelar o reprogramar (programada y dentro del plazo)")
+    change_deadline: datetime = Field(..., description="Último momento para cancelar o reprogramar")
+
+
+class MyAppointmentsCounts(BaseModel):
+    total: int
+    scheduled: int
+    done: int
+    cancelled: int
+
+
+class MyAppointmentsOut(BaseModel):
+    cancel_min_hours: int
+    counts: MyAppointmentsCounts
+    appointments: list[MyAppointmentOut]
+
+
+class RescheduleIn(BaseModel):
+    start_at: datetime = Field(..., description="Nuevo inicio de la cita (ISO 8601)")
+
+    @field_validator("start_at")
+    @classmethod
+    def _naive_local(cls, v: datetime) -> datetime:
+        return to_local_naive(v)
+
+
 class AppointmentStatusUpdate(BaseModel):
     status: str
 

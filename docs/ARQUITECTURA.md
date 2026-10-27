@@ -73,7 +73,9 @@ Se divide en dos PRs: **A** (cuentas de cliente) y **B** (pago simulado y tarjet
 ### US-05 · Mis reservas (propia)
 > Como cliente registrado, quiero ver y cancelar mis reservas desde mi cuenta, para gestionar cambios sin tener que llamar al negocio.
 
-- Depende de US-01. **Por decidir:** si se puede cancelar en cualquier momento o solo hasta X horas antes.
+- Depende de US-01. **Implementado:** `GET /api/me/appointments` (contadores total/programadas/completadas/canceladas), `POST /api/me/appointments/{id}/cancel` (reembolso simulado: `payment_status = refunded`) y `POST /api/me/appointments/{id}/reschedule` (solo fecha y hora; mismo servicio y pago; sin límite de veces). Plazo: hasta `CANCEL_MIN_HOURS` = 24 h antes de la cita. Una cita ajena responde 404.
+- **Reprogramar sin chocar consigo misma (H-29):** la disponibilidad acepta `exclude_id` para no contar como ocupada la cita que se mueve; en los endpoints públicos solo se respeta si la cita es del cliente con sesión.
+- **Frontend:** pestañas "Reservar" / "Mis reservas" (solo con sesión) y "modo reprogramar" que reutiliza el calendario y los horarios del paso 2.
 
 ## 4. Orden de trabajo
 

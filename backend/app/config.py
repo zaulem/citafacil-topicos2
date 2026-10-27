@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     closed_weekdays: str = "6"
     # Hasta cuántos meses adelante se puede reservar (desde hoy).
     booking_horizon_months: int = 3
+    # Hasta cuántas horas antes de la cita el cliente puede cancelarla o reprogramarla (US-05).
+    cancel_min_hours: int = 24
 
     # --- Base de datos ---
     # En local: SQLite. En producción, define DATABASE_URL (PostgreSQL).

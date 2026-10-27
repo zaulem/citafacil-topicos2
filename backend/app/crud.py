@@ -111,6 +111,37 @@ def create_appointment(
     return obj
 
 
+def list_customer_appointments(db: Session, customer_id: int) -> list[models.Appointment]:
+    """Reservas de un cliente, de la más reciente a la más antigua (US-05)."""
+    return (
+        db.query(models.Appointment)
+        .filter(models.Appointment.customer_id == customer_id)
+        .order_by(models.Appointment.start_at.desc())
+        .all()
+    )
+
+
+def cancel_appointment(db: Session, appt: models.Appointment) -> models.Appointment:
+    """Cancela la cita; si estaba pagada, el pago (simulado) se reembolsa completo."""
+    appt.status = models.STATUS_CANCELLED
+    if appt.payment_status == models.PAYMENT_PAID:
+        appt.payment_status = models.PAYMENT_REFUNDED
+    db.commit()
+    db.refresh(appt)
+    return appt
+
+
+def reschedule_appointment(db: Session, appt: models.Appointment, start_at: datetime) -> models.Appointment:
+    """Mueve la cita conservando su duración y su pago; el recordatorio se vuelve a enviar."""
+    duration = appt.end_at - appt.start_at
+    appt.start_at = start_at
+    appt.end_at = start_at + duration
+    appt.reminder_sent = False
+    db.commit()
+    db.refresh(appt)
+    return appt
+
+
 def list_appointments(
     db: Session, status: Optional[str] = None, day: Optional[date] = None
 ) -> list[models.Appointment]:
